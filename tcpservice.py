@@ -6,11 +6,7 @@ from common import *
 import protocol
 #------------------------------------------------------------------------------
 #
-#新想法，dict_RemoteMethodMatrix里面 填入全局函数或者类函数，两个socket 记录在类变量里面
 #
-# 值仅仅赋给了 linsten的那个socket，accept以后会产生新的socket 新socket没有被赋值！！！！！
-# 由此引出的问题： 应该是先建立一个监听socket 每次accept成功产生新的socket，此时要再创建一个remote socket和accept的socket关联
-#也就是 只能在on_accept函数里面创建remote socket
 #
 #
 class CBase_socket(asyncore.dispatcher):
@@ -29,7 +25,7 @@ class CBase_socket(asyncore.dispatcher):
     def default_accept():
         pass
         
-    def default_read(self,data):
+    def default_read(data):
         print (data)
     
     dict_Base_socket_MethodMatrix = {
