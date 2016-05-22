@@ -1,0 +1,4 @@
+python:
+*.py[cod]
+*.bak
+log

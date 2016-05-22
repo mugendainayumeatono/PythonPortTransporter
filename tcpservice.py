@@ -7,7 +7,7 @@ import protocol
 #------------------------------------------------------------------------------
 #
 #新想法，dict_RemoteMethodMatrix里面 填入全局函数或者类函数，两个socket 记录在类变量里面
-#试试看python 纤程 yelp
+#
 # 值仅仅赋给了 linsten的那个socket，accept以后会产生新的socket 新socket没有被赋值！！！！！
 # 由此引出的问题： 应该是先建立一个监听socket 每次accept成功产生新的socket，此时要再创建一个remote socket和accept的socket关联
 #也就是 只能在on_accept函数里面创建remote socket
@@ -15,31 +15,31 @@ import protocol
 #
 class CBase_socket(asyncore.dispatcher):
     #objTcpServiceLoger = None
-    #list_BlockAddr = []
-    #nRecvBuffSize = 1024
+    list_BlockAddr = []
+    nRecvBuffSize = 1024
     list_szSendBuff = []
-    objPairSocket  = None
     
     def __init__(self,sock=None):
         asyncore.dispatcher.__init__(self,sock)
         self.objTcpServiceLoger = logging.getLogger('log.socket')
-        self.nRecvBuffSize =1024
         self.list_szSendBuff = []
         self.szBuff = []
         self.list_accepted_socket = []
-        self.list_BlockAddr = []
-        self.objPairSocket = 22
     
-    def default_accept(self):
-        raise NotImplementedError
+    def default_accept():
+        pass
         
     def default_read(self,data):
-        raise NotImplementedError
+        print (data)
     
-    dict_MethodMatrix = {        
+    dict_Base_socket_MethodMatrix = {
         "accept":default_accept,
         "read":default_read
     }
+    
+    #overwrite this method in child class please
+    def readMethod(self,data):
+        self.dict_Base_socket_MethodMatrix["read"](data)
         
     def handle_accept(self):
         sock, addr = self.accept()
@@ -50,31 +50,19 @@ class CBase_socket(asyncore.dispatcher):
                 sock.close()
                 return
             self.list_accepted_socket.append(self.__class__(sock))
-            self.objPairSocket = 20
+            self.dict_Base_socket_MethodMatrix["accept"]()
             self.objTcpServiceLoger.info ("connected {}".format(addr))
-          
-    #def handle_read(self):
-    #    data = self.recv(self.nRecvBuffSize)
-    #    if(len(data) == 0):
-    #        self.objTcpServiceLoger.info ("disconnected {}".format(self.addr))
-    #        return
-    #    
-    #    self.objTcpServiceLoger.debug ("receive {} bit".format(len(data)))
-    #    pfun = self.dict_MethodMatrix["on_read"](self,data)
-    #    pfun(self.dict_MethodMatrix["self"],data)
         
     def handle_read(self):
         data = self.recv(self.nRecvBuffSize)
-        print(self.list_accepted_socket)
-        #if(len(data) == 0):
-        #     self.objTcpServiceLoger.info ("disconnected {}".format(self.addr))
-        #     self.objPairSocket.close()
-        #     return
-        #self.objTcpServiceLoger.debug ("receive {} bit".format(len(data)))
-        obj = self.objPairSocket
-        print(obj)
-        #obj.list_szSendBuff.append(11)
-        #print(obj.list_szSendBuff.pop())
+        if(len(data) == 0):
+             self.objTcpServiceLoger.info ("disconnected {}".format(self.addr))
+             self.close()
+             return
+        self.objTcpServiceLoger.debug ("receive {} bit".format(len(data)))
+        self.readMethod(data)
+
+
         
     def writable(self):
         if(len(self.szBuff)==0):
@@ -100,37 +88,40 @@ class CBase_socket(asyncore.dispatcher):
     def AddToBlockAddr(cls,szIPaddr):
         cls.list_BlockAddr.append(szIPaddr)
         
-    def pairing(self,objSock):
-        self.objTcpServiceLoger.info ("got remote socket {}")
-        #print(objSock.tmp)
-        self.objPairSocket = objSock
+    @classmethod
+    def UpdateMethodMatrix(cls,dict_add):
+        cls.dict_Base_socket_MethodMatrix.update(dict_add)
+        
+    @classmethod
+    def GetMethod(cls,strMethod):
+        return cls.dict_Base_socket_MethodMatrix[strMethod]
             
             
 class CClient_RemoteSocket(CBase_socket):
+    
+    def readadata(self,data):
+        print("CClient_RemoteSocket")
+        print(data)
+        self.sendData(data)
+    
+    dict_MethodMatrix = {
+        "read":readadata
+    }
+    
     def __init__(self,sock=None):
         CBase_socket.__init__(self,sock)
-        self.tmp = 17
+        self.UpdateMethodMatrix(self.dict_MethodMatrix)
+        self.isFirstPacket = True
     
-    #def pairing(self,objSock):
-    #    #self.objPairSocket = objSock
-    #    self.objPairSocket.append(13)
-    
-    def handle_read(self):
-        data = self.recv(self.nRecvBuffSize)
-        if(len(data) == 0):
-            self.objTcpServiceLoger.info ("disconnected {}".format(self.addr))
-            self.objPairSocket.close()
-            return
-        self.objTcpServiceLoger.debug ("receive {} bit".format(len(data)))
-        self.objPairSocket.list_szSendBuff.append(data)
-    
-    #debug
-    def handle_write(self):
-        nLength = self.send(self.szBuff)
-        #self.objTcpServiceLoger.debug ("send data {}({})".format(self.szBuff,len(self.szBuff)))
-        self.objTcpServiceLoger.debug ("send {} bit".format(nLength))
-        #self.szBuff = self.szBuff[nLength:]
-        #self.objTcpServiceLoger.debug ("has not send data {}({})".format(self.szSendBuff,len(self.szSendBuff)))
+    def readMethod(self,data):
+        if self.isFirstPacket:
+            #check password
+            self.objTcpServiceLoger.warning ("Error password")
+            self.objRemoteSocket = CClient_RemoteSocket()
+            self.isFirstPacket = False
+        else:
+            fun = self.GetMethod("read")
+            fun(self,data)
 
 class CClient_LocalSocket(CBase_socket):
     def __init__(self,sock=None):

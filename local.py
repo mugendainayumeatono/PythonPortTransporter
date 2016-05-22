@@ -18,48 +18,19 @@ def startService(port):
     globefunStartLog("debug",True)
     objMainLoger.debug("helloword")
     
-    Objsock_service_linten = CTransport(10081,10082)
+    Objsock_service_linten = CClient_RemoteSocket()
+    Objsock_service_linten.create_socket(socket.AF_INET,socket.SOCK_STREAM)
+    Objsock_service_linten.bind(("",10081))
+    Objsock_service_linten.listen(5)
     #Objsock_service_linten.localSocket.pairing(Objsock_service_linten.remoteSocket)
     asyncore.loop(use_poll = True)
-    
-class clsbase:
-    def donathing(self):
-        pass
-            
-    
-class clsa(clsbase):
-    #def __init__(self):
-        #self.m_objb=None
-    def setobj(self,objb):
-        self.m_objb = objb
-    def showobjb(self):
-        self.m_objb.showself()
-        
-class clsb(clsbase):
-    def __init__(self):
-        self.m_str = "hello"
-    def showself(self):
-        print(self.m_str)
-class clsc:
-    def __init__(self):
-        self.obja = clsa()
-        self.objb = clsb()
-        self.obja.setobj(self.objb)
-        self.obja.showobjb()
-        self.obja.m_objb.value = 1
-
-def testfun():
-    objc = clsc()
-    #objc.testfun()
-    print(objc.obja.m_objb.value)
-    print(objc.objb.value)
 
 def main():
     nPotr = None
     nFlag = None
-    testfun()
     if len(sys.argv) <= 1:
         usage()
+        sys.exit(2)
     
     try:
         opts, args = getopt.getopt(sys.argv[1:], "scp:h")
