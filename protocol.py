@@ -45,5 +45,32 @@
 #
 #
 #
+import array
+
 def unpackage(data):
     return "echo",data
+    
+class IPPacket():
+    def __init__(self):
+        dict_Header={
+        "0_ver":'\x44',
+        "1_type":'\x08',
+        "2_totallen":'\x0f\x0f'
+        }
+        strpacket = ""
+        for key, value in dict_Header.items():
+            strpacket += value
+        strpacket = strpacket.encode("ascii")
+        print(strpacket)
+    def GetPacket(self):
+        for key, value in dict_Header.items():
+            strpacket += value
+        return strpacket
+        
+        
+if __name__ == '__main__' :
+    packet = ImpactPacket.IP()
+    packet.set_ip_src("192.168.1.2")
+    packet.set_ip_dst("192.168.1.2")
+    packet.contains(ImpactPacket.ICMP("hello"))
+    print(packet.get_packet());

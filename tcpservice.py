@@ -1,14 +1,18 @@
 import asyncore
 import socket
 import logging
+import time
 # user module
 from common import *
 import protocol
 #------------------------------------------------------------------------------
+# 矩阵表 类似有化
 #
-#调查为什么连接到remote的socket不会被关闭
-#强化log
-#
+#doc
+# on child class over write function readMethod() to define what will child class do
+# readMethod() should call GetMethod() which get method form method martix table, to decide what will do
+# use UpdateMethodMatrix() to update method martix table
+# in CBase_socket there aer two default method accept and read,you should overwrite those two method on child class
 class CBase_socket(asyncore.dispatcher):
     #objLoger = None
     list_BlockAddr = []
@@ -18,20 +22,21 @@ class CBase_socket(asyncore.dispatcher):
     def __init__(self,sock=None,objParents=None,nSockID=None):
         asyncore.dispatcher.__init__(self,sock)
         if nSockID == None:
-            self.objLoger = logging.getLogger('log.socket.listen')
+            self.objLoger = logging.getLogger('log.{}.listen'.format(self.__class__.__name__))
+            self.nSocketID = 0
         else:
-            self.objLoger = logging.getLogger('log.socket.connect({})'.format(nSockID))
+            self.objLoger = logging.getLogger('log.{}.connect({})'.format(self.__class__.__name__,nSockID))
+            self.nSocketID = nSockID
         if objParents!=None:
             self.objParents = objParents
         self.list_szSendBuff = []
         self.szBuff = []
         self.list_accepted_socket = {}
-        self.nSocketID = 0
     
-    def default_accept():
+    def default_accept(self):
         pass
         
-    def default_read(data):
+    def default_read(self,data):
         print (data)
     
     dict_Base_socket_MethodMatrix = {
@@ -41,20 +46,26 @@ class CBase_socket(asyncore.dispatcher):
     
     #overwrite this method in child class please
     def readMethod(self,data):
-        self.dict_Base_socket_MethodMatrix["read"](data)
+        self.dict_Base_socket_MethodMatrix["read"](self,data)
+        
+    def create_socket(self, family=socket.AF_INET, type=socket.SOCK_STREAM,protocal=0):
+        self.family_and_type = family, type
+        sock = socket.socket(family, type,protocal)
+        sock.setblocking(0)
+        self.set_socket(sock)
         
     def handle_accept(self):
         sock, addr = self.accept()
+        self.objLoger.info ("connected from {}".format(addr))
         if sock is not None:
             if addr in self.list_BlockAddr:
                 self.objLoger.info ("blocked {}".format(addr))
                 sock.close()
                 return
             self.list_accepted_socket[self.nSocketID] = (self.__class__(sock,self,self.nSocketID))
-            self.objLoger.debug ("construct socket ID:{}".format(self.nSocketID))
+            self.objLoger.debug ("constructed socket ID:{}".format(self.nSocketID))
             self.nSocketID += 1
-            self.dict_Base_socket_MethodMatrix["accept"]()
-            self.objLoger.info ("connected from {}".format(addr))
+            self.dict_Base_socket_MethodMatrix["accept"](self)
         
     def handle_read(self):
         data = self.recv(self.nRecvBuffSize)
@@ -109,124 +120,88 @@ class CBase_socket(asyncore.dispatcher):
         return cls.dict_Base_socket_MethodMatrix[strMethod]     
             
             
-class CClient_RemoteSocket(CBase_socket):
+class CClient_LocalSocket(CBase_socket):
+    def SetRemote(self,tuple_RemoteAddr):
+        self.tuple_RemoteAddr = tuple_RemoteAddr
+        self.objLoger.info ("set remote peer {}".format(self.tuple_RemoteAddr))
     
-    def readadata(self,data):
-        print("CClient_RemoteSocket")
-        print(data)
+    def On_Receivedata(self,data):
+        self.objLoger.debug ("transport:{} bit".format(len(data))
         self.objRemoteSocket.sendData(data)
         
     def On_SetRemote(self,tuple_RemoteAddr):
         self.SetRemote(tuple_RemoteAddr)
         
-    def On_FirstPacket(self,data):
-        self.On_SetRemote(self.objParents.tuple_RemoteAddr)
+    def On_RequestPWD(self,data):
         #check password
         self.objLoger.warning ("Error password")
-        self.objRemoteSocket = CClient_RemoteSocket()
-        self.objRemoteSocket.create_socket(socket.AF_INET,socket.SOCK_STREAM)
-        try:
-            self.objRemoteSocket.connect(self.tuple_RemoteAddr)
-        except(ConnectionError):
-            self.handle_close()
-        self.isFirstPacket = False
-        self.sendData({"123":123})
         
     def On_LinkClose(self,data):
-        self.objLoger.info ("disconnected {}".format(self.tuple_RemoteAddr))
+        self.objLoger.info ("remote disconnected {}".format(self.tuple_RemoteAddr))
         self.objRemoteSocket.close()
+        
+    def On_CreatRemote(self):
+        self.objLoger.info ("creat remote socket and connect")
+        self.objRemoteSocket = CClient_RemoteSocket(self)
+        self.objRemoteSocket.create_socket(socket.AF_INET,socket.SOCK_STREAM)
+        try:
+            self.objRemoteSocket.connect(self.objParents.tuple_RemoteAddr)
+        except(ConnectionError):
+            self.handle_close()
     
     dict_MethodMatrix = {
-        "read":readadata,
-        "firstpacket":On_FirstPacket,
+        #"accept":On_Accept,
+        "read":On_Receivedata,
         "linkclose":On_LinkClose,
         "setremote":On_SetRemote
     }
     
     def __init__(self,sock=None,objParents=None,nSocketID=None):
         CBase_socket.__init__(self,sock,objParents,nSocketID)
+        self.objLoger.debug ("init " + self.__class__.__name__)
         self.UpdateMethodMatrix(self.dict_MethodMatrix)
-        self.isFirstPacket = True
-        
-    def SetRemote(self,tuple_RemoteAddr):
-        self.tuple_RemoteAddr = tuple_RemoteAddr
-        self.objLoger.info ("set remote peer {}".format(self.tuple_RemoteAddr))
+        if sock != None:
+            self.On_CreatRemote()
     
     def readMethod(self,data):
-        if self.isFirstPacket:
-            fun = self.GetMethod("firstpacket")
-        elif(len(data) == 0):
+
+        if(len(data) == 0):
             fun = self.GetMethod("linkclose")
         else:
             fun = self.GetMethod("read")
-        fun(self,data)
+            fun(self,data)
 
-class CClient_LocalSocket(CBase_socket):
-    def __init__(self,sock=None):
-        CBase_socket.__init__(self,sock)
+class CClient_RemoteSocket(CBase_socket):
+    def __init__(self,objLocalSocket):
+        CBase_socket.__init__(self,None)
+        self.objLoger.info ("socket ID:{}".format(objLocalSocket.nSocketID) + ",init " + self.__class__.__name__)
+        self.objLocalSocket = objLocalSocket
         
-    #def pairing(self,objSock):
-    #    self.objLoger.info ("got remote socket {}")
-    #    print(objSock.tmp)
-    #    self.objPairSocket.append(objSock)
-    
-    def handle_read(self):
-        #data = self.recv(self.nRecvBuffSize)
-        #if(len(data) == 0):
-        #     self.objLoger.info ("disconnected {}".format(self.addr))
-        #     self.objPairSocket.close()
-        #     return
-        #self.objLoger.debug ("receive {} bit".format(len(data)))
-        obj = self.objPairSocket.pop()
-        print(obj.tmp)
-        obj.list_szSendBuff.append(11)
-        print(obj.list_szSendBuff.pop())
-               
-class CTransport():
-    
-    def method_echo(localSocket,data):
-        localSocket.objLoger.debug ("echo {} bit data={}".format(len(dict_Data["data"]),dict_Data["data"]))
-        localSocket.sendData(data)
-        
-    def localReadMethod(self,data):
-        print("read")
-        self.localSocket.objLoger.debug ("echo {} bit data={}".format(len(data),data))
-        self.localSocket.sendData(data) 
-    
-    def method_accept(self):
-        pass
-    
-    def method_read(self,data):
-        self.objLoger.debug ("echo")
-        return self.dict_MethodMatrix["echo"]
+    def readMethod(self,data):
 
-    dict_LocalMethodMatrix={
-        "accept":method_accept,
-        "read":method_read,
-        "echo":localReadMethod
-        #"pwd":method_checkPWD
-    }
-    
-    dict_RemoteMethodMatrix={
-        "echo":method_echo,
-        #"pwd":method_checkPWD
-    }
-
-    def __init__(self, nLocalPort,nRemotePort):
-        self.localSocket = CBase_socket()
-        self.localSocket.create_socket(socket.AF_INET,socket.SOCK_STREAM)
-        self.localSocket.bind(("",nLocalPort))
-        self.localSocket.listen(5)
+        if(len(data) == 0):
+        		self.objLoger.info ("server disconnected {}".format(self.tuple_RemoteAddr))
+        		self.objLocalSocket.close()
+        else:
+            self.objLocalSocket.sendData(data)
         
-        self.remoteSocket = CBase_socket()
-        #self.remoteSocket.pairing(self.localSocket)
-        #self.remoteSocket.create_socket(socket.AF_INET,socket.SOCK_STREAM)
-        #self.remoteSocket.bind(("",nRemotePort))
-        #self.remoteSocket.listen(5)
-        print("=======================")
-        self.localSocket.pairing(self.remoteSocket)
-        self.remoteSocket.pairing(self.localSocket)
-        #self.remoteSocket.list_szSendBuff.append(10)
-        #print(self.localSocket.objPairSocket.list_szSendBuff.pop())
-        #self.localSocket.handle_read()
-        print("=======================")
+if __name__ == '__main__' :
+    tuple_RemoteAddr = ("127.0.0.1",10085)
+    tuple_LocalAddr = ("127.0.0.1",10084)
+    globefunStartLog("debug",True)
+    
+    objListen = CClient_LocalSocket()
+    objListen.SetRemote(tuple_RemoteAddr)
+    objListen.create_socket(socket.AF_INET,socket.SOCK_STREAM)
+    objListen.bind(tuple_LocalAddr)
+    objListen.listen(5)
+
+    time.sleep(1)
+        
+    objSent = CBase_socket()
+    objSent.create_socket(socket.AF_INET,socket.SOCK_STREAM)
+    objSent.connect(tuple_LocalAddr)
+    print("connect complete")
+    objSent.sendData(b"test data")
+    #objListen.close()
+    asyncore.loop(use_poll = True)
