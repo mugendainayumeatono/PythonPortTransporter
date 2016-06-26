@@ -5,6 +5,13 @@ parentdir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0,parentdir) 
 from tcpservice import *
 
+class CEcho_socket(CBase_socket):
+    def __init__(self,sock=None,objParents=None,nSocketID=None):
+        CBase_socket.__init__(self,sock,objParents,nSocketID)
+    		
+    def readMethod(self,data):
+        self.sendData(data)
+
 def main():
     def usage():
         print("parameter will look like '-p port'")
@@ -35,10 +42,11 @@ def main():
             sys.exit(2)
 
     globefunStartLog("debug",True)
-    objListen = CBase_socket()
+    objListen = CEcho_socket()
     objListen.create_socket(socket.AF_INET,socket.SOCK_STREAM)
     objListen.bind(("",nPotr))
     objListen.listen(5)
+    objListen.objLoger.info ("Start echo serviec")
     asyncore.loop(use_poll = True)
 
 

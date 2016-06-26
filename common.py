@@ -7,7 +7,7 @@ dict_LogLevel = {
 }
 szLogPath = "log"
 def globefunStartLog(LogLevel = "info",bConsole = False):
-    szLogRecord = "%(asctime)s PID:%(process)d  In module:%(module)s %(funcName)s() %(lineno)d %(levelname)s: %(message)s"
+    szLogRecord = "%(asctime)s PID:%(process)d  In module:%(module)s[%(name)s] %(funcName)s() %(lineno)d %(levelname)s: %(message)s"
     objFormatter = logging.Formatter(szLogRecord)
   
     objFileHander = logging.FileHandler(szLogPath)
