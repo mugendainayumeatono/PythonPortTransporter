@@ -6,7 +6,7 @@ import time
 from common import *
 import protocol
 #------------------------------------------------------------------------------
-# 矩阵表 类似有化
+# 
 #
 #doc
 # on child class over write function readMethod() to define what will child class do
@@ -23,9 +23,10 @@ class CBase_socket(asyncore.dispatcher):
         asyncore.dispatcher.__init__(self,sock)
         if nSockID == None:
             self.objLoger = logging.getLogger('log.{}.listen'.format(self.__class__.__name__))
-            self.nSocketID = 0
+            self.nSocketID = None
+            self.nIDCounter = 0
         else:
-            self.objLoger = logging.getLogger('log.{}.connect({})'.format(self.__class__.__name__,nSockID))
+            self.objLoger = logging.getLogger('log.{}.connections({})'.format(self.__class__.__name__,nSockID))
             self.nSocketID = nSockID
         if objParents!=None:
             self.objParents = objParents
@@ -62,9 +63,9 @@ class CBase_socket(asyncore.dispatcher):
                 self.objLoger.info ("blocked {}".format(addr))
                 sock.close()
                 return
-            self.list_accepted_socket[self.nSocketID] = (self.__class__(sock,self,self.nSocketID))
-            self.objLoger.debug ("constructed socket ID:{}".format(self.nSocketID))
-            self.nSocketID += 1
+            self.objLoger.debug ("constructed transport socket ID:{}".format(self.nIDCounter))
+            self.list_accepted_socket[self.nIDCounter] = (self.__class__(sock,self,self.nIDCounter))
+            self.nIDCounter += 1
             self.dict_Base_socket_MethodMatrix["accept"](self)
         
     def handle_read(self):
@@ -95,9 +96,9 @@ class CBase_socket(asyncore.dispatcher):
         try:
             objParents = getattr(self, 'objParents')
         except AttributeError:
-            self.objLoger.debug ("destruct socket ID:{}".format(self.nSocketID))
+            self.objLoger.debug ("destruct listen socket ID:{}".format(self.nSocketID))
         else:
-            self.objLoger.debug ("destruct socket ID:{}".format(self.nSocketID))
+            self.objLoger.debug ("destruct transport socket ID:{}".format(self.nSocketID))
             self.objParents.list_accepted_socket[self.nSocketID] = None
             
     def handle_connect(self):
@@ -110,25 +111,31 @@ class CBase_socket(asyncore.dispatcher):
     def AddToBlockAddr(cls,szIPaddr):
         cls.list_BlockAddr.append(szIPaddr)
         
-    @classmethod
-    def UpdateMethodMatrix(cls,dict_add):
-        cls.dict_Base_socket_MethodMatrix.update(dict_add)
+    #@classmethod
+    #def UpdateMethodMatrix(cls,dict_add):
+    #    cls.dict_Base_socket_MethodMatrix.update(dict_add)
     
     #overwrite this method in child class please
-    @classmethod
-    def GetMethod(cls,strMethod):
-        return cls.dict_Base_socket_MethodMatrix[strMethod]     
+    #@classmethod
+    #def GetMethod(cls,strMethod):
+    #    return cls.dict_Base_socket_MethodMatrix[strMethod]
+    
+    def UpdateMethodMatrix(self,dict_add):
+        self.dict_Base_socket_MethodMatrix.update(dict_add)
+        
+    def GetMethod(self,strMethod):
+        return self.dict_Base_socket_MethodMatrix[strMethod]   
             
             
-class CClient_LocalSocket(CBase_socket):
+class CLocalSocket(CBase_socket):
     def SetRemote(self,tuple_RemoteAddr):
         self.tuple_RemoteAddr = tuple_RemoteAddr
-        self.objLoger.info ("set remote peer {}".format(self.tuple_RemoteAddr))
+        self.objLoger.info ("set transport target {}".format(self.tuple_RemoteAddr))
     
     def On_Receivedata(self,data):
-        self.objLoger.debug ("transport:{} bit".format(len(data))
+        self.objLoger.debug ("transport:{} bit".format(len(data)))
         self.objRemoteSocket.sendData(data)
-        
+
     def On_SetRemote(self,tuple_RemoteAddr):
         self.SetRemote(tuple_RemoteAddr)
         
@@ -141,12 +148,13 @@ class CClient_LocalSocket(CBase_socket):
         self.objRemoteSocket.close()
         
     def On_CreatRemote(self):
-        self.objLoger.info ("creat remote socket and connect")
+        self.objLoger.info ("creat remote socket and connect to {}".format(self.objParents.tuple_RemoteAddr))
         self.objRemoteSocket = CClient_RemoteSocket(self)
         self.objRemoteSocket.create_socket(socket.AF_INET,socket.SOCK_STREAM)
         try:
             self.objRemoteSocket.connect(self.objParents.tuple_RemoteAddr)
         except(ConnectionError):
+            self.objLoger.warning ("connect to {} fail".format(self.objParents.tuple_RemoteAddr))
             self.handle_close()
     
     dict_MethodMatrix = {
@@ -171,37 +179,43 @@ class CClient_LocalSocket(CBase_socket):
             fun = self.GetMethod("read")
             fun(self,data)
 
-class CClient_RemoteSocket(CBase_socket):
+class CRemoteSocket(CBase_socket):
     def __init__(self,objLocalSocket):
-        CBase_socket.__init__(self,None)
+        CBase_socket.__init__(self,None,None,objLocalSocket.nSocketID)
         self.objLoger.info ("socket ID:{}".format(objLocalSocket.nSocketID) + ",init " + self.__class__.__name__)
         self.objLocalSocket = objLocalSocket
         
     def readMethod(self,data):
+        
+        try:
+            tuple_RemoteAddr = getattr(self, 'tuple_RemoteAddr')
+        except AttributeError:
+            self.tuple_RemoteAddr = self.socket.getpeername()
 
         if(len(data) == 0):
         		self.objLoger.info ("server disconnected {}".format(self.tuple_RemoteAddr))
         		self.objLocalSocket.close()
         else:
+            self.objLoger.debug ("transport:{} bit".format(len(data)))
             self.objLocalSocket.sendData(data)
         
 if __name__ == '__main__' :
-    tuple_RemoteAddr = ("127.0.0.1",10085)
+    tuple_RemoteAddr = ("127.0.0.1",22)
     tuple_LocalAddr = ("127.0.0.1",10084)
     globefunStartLog("debug",True)
     
-    objListen = CClient_LocalSocket()
+    objListen = CLocalSocket()
     objListen.SetRemote(tuple_RemoteAddr)
     objListen.create_socket(socket.AF_INET,socket.SOCK_STREAM)
     objListen.bind(tuple_LocalAddr)
     objListen.listen(5)
 
-    time.sleep(1)
+    #time.sleep(1)
         
-    objSent = CBase_socket()
-    objSent.create_socket(socket.AF_INET,socket.SOCK_STREAM)
-    objSent.connect(tuple_LocalAddr)
-    print("connect complete")
-    objSent.sendData(b"test data")
+    #objSent = CBase_socket()
+    #objSent.create_socket(socket.AF_INET,socket.SOCK_STREAM)
+    #objSent.connect(tuple_LocalAddr)
+    #print("connect complete")
+    #objSent.sendData(b"test data")
     #objListen.close()
-    asyncore.loop(use_poll = True)
+    #asyncore.loop(use_poll = True)
