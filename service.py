@@ -25,7 +25,8 @@ from encryption import *
 class CBase_socket(asyncore.dispatcher):
     #objLoger = None
     list_BlockAddr = []
-    nRecvBuffSize = 4194304
+    #nRecvBuffSize = 4194304
+    nRecvBuffSize = 1024
     #list_szSendBuff = []
     
     def default_accept(self):
@@ -109,18 +110,24 @@ class CBase_socket(asyncore.dispatcher):
         self.szBuff = self.szBuff[nLength:]
         self.objLoger.debug ("has not send data {} bit".format(len(self.szBuff)))
         
-    def handle_close(self):
+    def handle_close(self, isGentle=True):
         self.objLoger.info ("do gentle disconnected {}".format(self.addr))
-        # try to sent out cache data
-        while self.writable():
-            try:
-                self.objLoger.debug ("will send {} bit".format(len(self.szBuff)))
-                nLength = self.socket.send(self.szBuff)
-                self.szBuff = self.szBuff[nLength:]
-            except OSError as why:
-                if why.args[0] in _DISCONNECTED:
-                    self.objLoger.error ("NO gentle disconnect,cache data was got lost!!!")
-                    break
+        if self.connected == False:
+            self.objLoger.info("NO connect")
+        else:
+            if isGentle == True:
+                # try to sent out cache data
+                while self.writable():
+                    try:
+                        self.objLoger.debug ("will send {} bit".format(len(self.szBuff)))
+                        nLength = self.socket.send(self.szBuff)
+                        self.szBuff = self.szBuff[nLength:]
+                    except OSError as why:
+                        if why.args[0] in _DISCONNECTED:
+                           self.objLoger.error ("gentle disconnect fail,cache data was got lost!!!")
+                           break
+            else:
+                self.objLoger.info ("skip gentle")
         self.objLoger.info ("disconnected {}".format(self.addr))
         self.close()
         if hasattr(self, 'objParents') == False:
@@ -188,8 +195,17 @@ class CLocalSocket(CBase_socket):
         self.On_Receivedata(encrypt(data))
 
     def On_Receivedata_Server(self,data):
-        self.objLoger.debug ("decrypt")
-        self.On_Receivedata(decrypt(data))
+        if hasattr(self,"byteReceiveBuffer"):
+            self.byteReceiveBuffer = self.byteReceiveBuffer.join(data)
+        else:
+            self.byteReceiveBuffer = data
+        if len(self.byteReceiveBuffer)%16 != 0:
+            self.objLoger.debug ("len of ReceiveBuffer {}".format(len(self.byteReceiveBuffer)))
+            return
+        else:
+            self.objLoger.debug ("decrypt")
+            self.On_Receivedata(decrypt(self.byteReceiveBuffer))
+            self.byteReceiveBuffer = None
 
     def On_SetRemote(self,tuple_RemoteAddr):
         self.SetRemote(tuple_RemoteAddr)
@@ -215,7 +231,7 @@ class CLocalSocket(CBase_socket):
             self.objRemoteSocket.connect(self.objParents.tuple_RemoteAddr)
         except(ConnectionError):
             self.objLoger.warning ("connect to {} fail".format(self.objParents.tuple_RemoteAddr))
-            self.handle_close()
+            self.handle_close(False)
 
     def On_CreatRemote_Normal(self):
        self.objRemoteSocket = CRemoteSocket(None,self,self.nSocketID)
@@ -272,6 +288,7 @@ class CLocalSocket(CBase_socket):
         else:
             fun = self.GetMethod("read")
         fun(self,data)
+        
 
     def enableEncryption(self,szEncrypticKey,bIsServer):
         self.szEncrypticKey = szEncrypticKey
@@ -317,10 +334,21 @@ class CRemoteSocket(CBase_socket):
         self.On_Receivedata(encrypt(data))
 
     def On_Receivedata_Decryption(self,data):
-        self.objLoger.debug ("decrypt")
-        self.On_Receivedata(decrypt(data))
+        if hasattr(self,"byteReceiveBuffer"):
+            self.byteReceiveBuffer = self.byteReceiveBuffer.join(data)
+        else:
+            self.byteReceiveBuffer = data
+        if len(self.byteReceiveBuffer)%16 != 0:
+            self.objLoger.debug ("len of ReceiveBuffer {}".format(len(self.byteReceiveBuffer)))
+            return
+        else:
+            self.objLoger.debug ("decrypt")
+            self.On_Receivedata(decrypt(self.byteReceiveBuffer))
+            self.byteReceiveBuffer = None
 
-    def On_LinkClose(self):
+
+
+    def On_LinkClose(self,data):
         self.objLoger.info ("server disconnected {}".format(self.objLocalSocket.tuple_RemoteAddr))
         self.objLocalSocket.handle_close()
 
@@ -346,10 +374,12 @@ class CRemoteSocket(CBase_socket):
         self.UpdateMethodMatrix(self.dict_MethodMatrix)
         
     def readMethod(self,data):
-        if(len(data) == 0):
-            self.GetMethod("linkclose")(self)
+        if len(data)==0:
+            fun = self.GetMethod("linkclose")
         else:
-            self.GetMethod("read")(self,data)
+            fun = self.GetMethod("read")
+        fun(self,data)
+
 
     def enableEncryption(self,bIsServer):
         #setAESencryptKey(szEncrypticKey)
@@ -376,8 +406,8 @@ class CRemoteSocket(CBase_socket):
     
 if __name__ == '__main__' :
     tuple_RemoteAddr = ("127.0.0.1",22)
-    tuple_LocalAddr = ("127.0.0.1",10085)
-    tuple_LocalAddrForEncryption = ("127.0.0.1",10088)
+    tuple_LocalAddr = ("127.0.0.1",10087)
+    tuple_LocalAddrForEncryption = ("127.0.0.1",10080)
     index = 1
     globefunStartLog("debug",True)
     objLoger = logging.getLogger('log.main')

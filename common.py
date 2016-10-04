@@ -38,3 +38,14 @@ def globefunStartLog(LogLevel = "info",bConsole = False):
         objLoger.addHandler(objStreamHandler)
 
     objLoger.setLevel(dict_LogLevel[LogLevel])
+
+if __name__=='__main__':
+    loglevel = "info"
+    objMainLoger = logging.getLogger('log.main')
+    globefunStartLog(loglevel,True)
+    print("log level = {}".format(loglevel))
+    objMainLoger.info("info")
+    objMainLoger.debug("debug")
+    objMainLoger.warning("warning")
+    objMainLoger.error("error")
+
