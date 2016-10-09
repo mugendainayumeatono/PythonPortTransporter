@@ -1,5 +1,3 @@
-# if last bit is 0 then write 16 zero again
-# when decode if lenght of zero > 16 only remove 16 zero
 #
 #
 #
@@ -44,17 +42,21 @@ def deleteNullChart_1(szMessage):
     else: 
         return szMessage
 
+#szMessage format which like "xxxxx\x04\x00\x00",will delete \x04\x00\x00
+#else format will not change
 def deleteNullChart_2(szMessage):
-    if type(szMessage).__name__ == "str":
-        raise ValueError
-        print("-------------------str-------------------")
-        szOutput=  szMessage.rstrip("\x00")
-        if szOutput[-1] == 0x04:
-            return szOutput[:-1]
+    if type(szMessage).__name__ != "bytes":
+        raise ValueError ("type must be bytes")
     else:
-        szOutput=  szMessage.rstrip(b'\x00')
-        if szOutput[-1] == 0x04:
-            return szOutput[:-1]
+        n0x04OffestFromLeft=szMessage.rfind(b'\x04')
+        if len(szMessage) - n0x04OffestFromLeft > 16:
+            return szMessage
+        else:
+            szOutput=  szMessage.rstrip(b'\x00')
+            if szOutput[-1] == 0x04:
+                return szOutput[:-1]
+            else:#case before encode last 16byte include 0x04
+                return szMessage
 
 def setAESEncryptionKey(szKey):
     global _objEncryption
@@ -71,6 +73,7 @@ def encrypt(szMessage):
 def decrypt(szMessage):
     global _objEncryption
     if _objEncryption != None:
+        print(_objEncryption.decrypt(szMessage))
         return deleteNullChart(_objEncryption.decrypt(szMessage))
 #        return _objEncryption.decrypt(szMessage)
     else:
@@ -111,3 +114,6 @@ if __name__ == "__main__":
     doTest(b"31-qwertyuiopasdfghjklzxcvbnm12")
     doTest(b"16-zxcvbnm123456")
     doTest(b"32-1234567890qwertyuioplkjhgfdsa")
+    print("================extend test====================")
+    print(deleteNullChart(b"16-zxcvbnm123456"))
+    print(deleteNullChart(b"16-zxcvbnm123\x0456"))

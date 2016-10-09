@@ -323,7 +323,6 @@ class CLocalSocket(CBase_socket):
             self.objLoger.info ("Normal Mode!")
             self.UpdateMethodMatrix(self.dict_MethodMatrix)
 
-
 class CRemoteSocket(CBase_socket):
     def On_Receivedata(self,data):
         self.objLoger.debug ("transport:{} bit".format(len(data)))
@@ -336,17 +335,18 @@ class CRemoteSocket(CBase_socket):
     def On_Receivedata_Decryption(self,data):
         if hasattr(self,"byteReceiveBuffer"):
             self.byteReceiveBuffer = self.byteReceiveBuffer.join(data)
+        #    print(self.byteReceiveBuffer)
         else:
             self.byteReceiveBuffer = data
+        #    print(self.byteReceiveBuffer)
         if len(self.byteReceiveBuffer)%16 != 0:
             self.objLoger.debug ("len of ReceiveBuffer {}".format(len(self.byteReceiveBuffer)))
             return
         else:
             self.objLoger.debug ("decrypt")
+            print(self.byteReceiveBuffer)
             self.On_Receivedata(decrypt(self.byteReceiveBuffer))
             self.byteReceiveBuffer = None
-
-
 
     def On_LinkClose(self,data):
         self.objLoger.info ("server disconnected {}".format(self.objLocalSocket.tuple_RemoteAddr))
