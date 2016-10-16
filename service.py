@@ -1,3 +1,20 @@
+#
+#    PythonPotrTransporter
+#    Copyright (C) 2016 by mickeyyf
+#
+#    This program is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation, either version 3 of the License, or
+#    (at your option) any later version.
+#
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
 import asyncore
 import socket
 import logging
@@ -195,17 +212,8 @@ class CLocalSocket(CBase_socket):
         self.On_Receivedata(encrypt(data))
 
     def On_Receivedata_Server(self,data):
-        if hasattr(self,"byteReceiveBuffer"):
-            self.byteReceiveBuffer = self.byteReceiveBuffer.join(data)
-        else:
-            self.byteReceiveBuffer = data
-        if len(self.byteReceiveBuffer)%16 != 0:
-            self.objLoger.debug ("len of ReceiveBuffer {}".format(len(self.byteReceiveBuffer)))
-            return
-        else:
-            self.objLoger.debug ("decrypt")
-            self.On_Receivedata(decrypt(self.byteReceiveBuffer))
-            self.byteReceiveBuffer = None
+        self.objLoger.debug ("decrypt")
+        self.On_Receivedata(decrypt(data))
 
     def On_SetRemote(self,tuple_RemoteAddr):
         self.SetRemote(tuple_RemoteAddr)
@@ -333,20 +341,8 @@ class CRemoteSocket(CBase_socket):
         self.On_Receivedata(encrypt(data))
 
     def On_Receivedata_Decryption(self,data):
-        if hasattr(self,"byteReceiveBuffer"):
-            self.byteReceiveBuffer = self.byteReceiveBuffer.join(data)
-        #    print(self.byteReceiveBuffer)
-        else:
-            self.byteReceiveBuffer = data
-        #    print(self.byteReceiveBuffer)
-        if len(self.byteReceiveBuffer)%16 != 0:
-            self.objLoger.debug ("len of ReceiveBuffer {}".format(len(self.byteReceiveBuffer)))
-            return
-        else:
-            self.objLoger.debug ("decrypt")
-            print(self.byteReceiveBuffer)
-            self.On_Receivedata(decrypt(self.byteReceiveBuffer))
-            self.byteReceiveBuffer = None
+        self.objLoger.debug ("decrypt")
+        self.On_Receivedata(decrypt(data))
 
     def On_LinkClose(self,data):
         self.objLoger.info ("server disconnected {}".format(self.objLocalSocket.tuple_RemoteAddr))
