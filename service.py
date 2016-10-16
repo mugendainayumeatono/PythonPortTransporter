@@ -42,8 +42,8 @@ from encryption import *
 class CBase_socket(asyncore.dispatcher):
     #objLoger = None
     list_BlockAddr = []
-    #nRecvBuffSize = 4194304
-    nRecvBuffSize = 1024
+    nRecvBuffSize = 4194304
+    #nRecvBuffSize = 1024
     #list_szSendBuff = []
     
     def default_accept(self):
@@ -89,7 +89,7 @@ class CBase_socket(asyncore.dispatcher):
         
     def handle_accept(self):
         sock, addr = self.accept()
-        self.objLoger.info ("connected from {}".format(addr))
+        self.objLoger.debug ("connected from {}".format(addr))
         if sock is not None:
             if addr in self.list_BlockAddr:
                 self.objLoger.info ("blocked {}".format(addr))
@@ -107,7 +107,7 @@ class CBase_socket(asyncore.dispatcher):
         data = self.recv(self.nRecvBuffSize)
         # if len(data)==0 then link was alredy closed
         self.objLoger.debug ("receive {} bit".format(len(data)))
-        #self.objLoger.debug ("data {}({})".format(self.szBuff,len(self.szBuff)))
+        self.objLoger.debug ("read {}({})".format(data,len(data)))
         self.readMethod(data)
         
     def writable(self):
@@ -123,44 +123,45 @@ class CBase_socket(asyncore.dispatcher):
     def handle_write(self):
         self.objLoger.debug ("will send {} bit".format(len(self.szBuff)))
         nLength = self.send(self.szBuff)
-        #self.objLoger.debug ("send data {}({})".format(self.szBuff,len(self.szBuff)))
+        self.objLoger.debug ("send data {}({})".format(self.szBuff,len(self.szBuff)))
         self.szBuff = self.szBuff[nLength:]
         self.objLoger.debug ("has not send data {} bit".format(len(self.szBuff)))
         
     def handle_close(self, isGentle=True):
-        self.objLoger.info ("do gentle disconnected {}".format(self.addr))
+        self.objLoger.debug ("disconnect form {}".format(self.addr))
         if self.connected == False:
-            self.objLoger.info("NO connect")
+            self.objLoger.debug ("disconnected {}".format(self.addr))
         else:
             if isGentle == True:
                 # try to sent out cache data
                 while self.writable():
                     try:
-                        self.objLoger.debug ("will send {} bit".format(len(self.szBuff)))
+                        self.objLoger.debug (" clean cache , will send {} bit".format(len(self.szBuff)))
                         nLength = self.socket.send(self.szBuff)
+                        self.objLoger.debug (" clean cache , has not send {} bit".format(nLength))
                         self.szBuff = self.szBuff[nLength:]
                     except OSError as why:
                         if why.args[0] in _DISCONNECTED:
-                           self.objLoger.error ("gentle disconnect fail,cache data was got lost!!!")
+                           self.objLoger.warning ("gentle disconnect fail,cache data was got lost!!!")
                            break
             else:
-                self.objLoger.info ("skip gentle")
-        self.objLoger.info ("disconnected {}".format(self.addr))
+                self.objLoger.debug ("skip gentle disconnect")
         self.close()
+        self.objLoger.debug ("disconnected {}".format(self.addr))
         if hasattr(self, 'objParents') == False:
             # current socket is listen socket
-            self.objLoger.debug ("destruct socket ID:{}".format(self.nSocketID))
+            self.objLoger.debug ("listen socket closed")
         else:
             self.objParents.list_accepted_socket[self.nSocketID] = None
             self.objLoger.debug ("destruct transport socket ID:{}".format(self.nSocketID))
             
     def handle_connect(self):
-        self.objLoger.info ("connected to {}".format(self.addr))
+        self.objLoger.debug ("connected to {}".format(self.addr))
  
     # bFlage == True shutdown read,bFlage == False shutdown write
     def handle_shutdown(self,bFlage):
         if bFlage == True:
-            self.objLoger.info ("shutdown read {}".format(self.addr))
+            self.objLoger.debug ("shutdown read {}".format(self.addr))
             self.socket.shutdown(socket.SHUT_RD)
         else:
             #clean writ cache
@@ -173,7 +174,7 @@ class CBase_socket(asyncore.dispatcher):
                         self.objLoger.error ("NO gentle disconnect,cache data was got lost!!!")
                         break
 
-            self.objLoger.info ("shutdown write {}".format(self.addr))
+            self.objLoger.debug ("shutdown write {}".format(self.addr))
             self.socket.shutdown(socket.SHUT_WR)  
        
     def sendData(self,szData):
@@ -195,36 +196,75 @@ class CBase_socket(asyncore.dispatcher):
         return self.dict_RunTime_MethodMatrix[strMethod]   
 
 
-class CLocalSocket(CBase_socket):
-
-    def SetRemote(self,tuple_RemoteAddr):
-        self.tuple_RemoteAddr = tuple_RemoteAddr
-        self.objLoger.info ("set transport target {}".format(self.tuple_RemoteAddr))
+class CMiddleSocketLayer(CBase_socket):
     
+    def __init__(self,sock=None,objParents=None,nSocketID=None):
+        CBase_socket.__init__(self,sock,objParents,nSocketID)
+        
+    def readMethod(self,data):
+        if len(data)==0:
+            fun = self.GetMethod("linkclose")
+        else:
+            fun = self.GetMethod("read")
+        fun(self,data)
+
+    #
+    #nConnectionMode 0: do NoT Encrypt
+    #nConnectionMode 1: Encrypt data as server peer
+    #nConnectionMode 2: Encrypt data as client peer
+    #otherwise do NoT Encrypt
+    #
+    def selfConfigure(self,tuple_RemoteAddr,nConnectionMode,szPassWord = None):
+        self.nConnectionMode = nConnectionMode
+        self.tuple_RemoteAddr = tuple_RemoteAddr
+        self.szPassWord = szPassWord
+        self.objLoger.info ("transport target {}".format(self.tuple_RemoteAddr))
+            
+        if self.nConnectionMode == SERVER_MODE:
+            self.objLoger.info ("Server Encryption Mode!")
+            self.UpdateMethodMatrix(self.dict_ServerMethodMatrix)
+        elif self.nConnectionMode == CLIENT_MODE:
+            self.objLoger.info ("Client Encryption Mode!")
+            self.UpdateMethodMatrix(self.dict_ClientMethodMatrix)	
+        #self.nConnectionMode ==0
+        else:
+            self.objLoger.info ("Normal Mode!")
+            self.UpdateMethodMatrix(self.dict_MethodMatrix)
+            
+        if self.nConnectionMode == SERVER_MODE or self.nConnectionMode == CLIENT_MODE:
+            if szPassWord == None:
+                raise ValueErroe("Encryption must specify a password")
+            else:
+                self.encryptor,self.decryptor = creatTwoEncryptor(szPassWord)
+
+
+class CLocalSocket(CMiddleSocketLayer):
+    
+    def __init__(self,sock=None,objParents=None,nSocketID=None):
+        CMiddleSocketLayer.__init__(self,sock,objParents,nSocketID)
+        self.objLoger.debug ("Socket ID:{}".format(nSocketID))
+        
+        if objParents != None:
+            self.selfConfigure(objParents.tuple_RemoteAddr,self.objParents.nConnectionMode,self.objParents.szPassWord)
+            
     def On_Receivedata(self,data):
         if hasattr(self,"objRemoteSocket") == False:
             self.GetMethod("creatremote")(self)
         self.objLoger.debug ("transport:{} bit".format(len(data)))
         self.objRemoteSocket.sendData(data)
-
-    def On_Receivedata_Client(self,data):
-        self.objLoger.debug ("encrypt")
-        self.On_Receivedata(encrypt(data))
-
-    def On_Receivedata_Server(self,data):
-        self.objLoger.debug ("decrypt")
-        self.On_Receivedata(decrypt(data))
-
-    def On_SetRemote(self,tuple_RemoteAddr):
-        self.SetRemote(tuple_RemoteAddr)
         
-    def On_RequestPWD(self,data):
-        #check password
-        self.objLoger.warning ("Error password")
+    def On_Receivedata_Encrypt(self,data):
+        self.objLoger.debug ("encrypt")
+        self.On_Receivedata(self.encryptor.encrypt(data))
+
+    def On_Receivedata_Decrypt(self,data):
+        self.objLoger.debug ("decrypt")
+        self.On_Receivedata(self.decryptor.decrypt(data))
         
     def On_LinkClose(self,data):
-        self.objLoger.info ("disconnect remote {}".format(self.objParents.tuple_RemoteAddr))
+        self.objLoger.debug ("remote closed{}".format(self.objParents.tuple_RemoteAddr))
         self.objRemoteSocket.handle_close()
+
     #
     #nEnableEncryption 0: do NoT Encrypt
     #nEnableEncryption 1: Encrypt data as server peer
@@ -232,13 +272,13 @@ class CLocalSocket(CBase_socket):
     #otherwise do NoT Encrypt
     #
     def On_ConnecToRemote(self):
-        self.objLoger.info ("creat remote socket and connect to {}".format(self.objParents.tuple_RemoteAddr))
+        self.objLoger.debug ("creat remote socket and connect to {}".format(self.objParents.tuple_RemoteAddr))
 
         self.objRemoteSocket.create_socket(socket.AF_INET,socket.SOCK_STREAM)
         try:
             self.objRemoteSocket.connect(self.objParents.tuple_RemoteAddr)
         except(ConnectionError):
-            self.objLoger.warning ("connect to {} fail".format(self.objParents.tuple_RemoteAddr))
+            self.objLoger.error ("connect to {} fail".format(self.objParents.tuple_RemoteAddr))
             self.handle_close(False)
 
     def On_CreatRemote_Normal(self):
@@ -247,105 +287,49 @@ class CLocalSocket(CBase_socket):
 
     def On_CreatRemote_Server(self):
         self.objRemoteSocket = CRemoteSocket(None,self,self.nSocketID)
-        #self.objRemoteSocket.enableEncryption(True)
-        self.objRemoteSocket.setSocketClass(SERVER_MODE)
         self.On_ConnecToRemote()
 
     def On_CreatRemote_Client(self):
         self.objRemoteSocket = CRemoteSocket(None,self,self.nSocketID)
-        #self.objRemoteSocket.enableEncryption(False)
-        self.objRemoteSocket.setSocketClass(CLIENT_MODE)
         self.On_ConnecToRemote()
-    
+
     dict_MethodMatrix = {
         #"accept":On_Accept,
         "creatremote":On_CreatRemote_Normal,
         "read":On_Receivedata,
         "linkclose":On_LinkClose,
-        "setremote":On_SetRemote
     }
 
     dict_ClientMethodMatrix = {
         #"accept":On_Accept,
         "creatremote":On_CreatRemote_Client,
-        "read":On_Receivedata_Client,
+        "read":On_Receivedata_Encrypt,
         "linkclose":On_LinkClose,
-        "setremote":On_SetRemote
     }
 
 
     dict_ServerMethodMatrix = {
         #"accept":On_Accept,
         "creatremote":On_CreatRemote_Server,
-        "read":On_Receivedata_Server,
+        "read":On_Receivedata_Decrypt,
         "linkclose":On_LinkClose,
-        "setremote":On_SetRemote
     }
-    
-    def __init__(self,sock=None,objParents=None,nSocketID=None):
-        CBase_socket.__init__(self,sock,objParents,nSocketID)
-        self.objLoger.debug ("Socket ID:{}".format(nSocketID) + "init " + self.__class__.__name__)
-        
-        if objParents != None:
-            self.SetRemote(self.objParents.tuple_RemoteAddr)
-            self.setSocketClass(self.objParents.nConnectionMode)
-            
-    def readMethod(self,data):
-        if len(data)==0:
-            fun = self.GetMethod("linkclose")
-        else:
-            fun = self.GetMethod("read")
-        fun(self,data)
-        
 
-    def enableEncryption(self,szEncrypticKey,bIsServer):
-        self.szEncrypticKey = szEncrypticKey
-        self.bIsServer = bIsServer
-        setAESEncryptionKey(szEncrypticKey)
-        if bIsServer == True:
-            self.UpdateMethodMatrix(self.dict_ServerMethodMatrix)
-            self.objLoger.info ("Encryption Server Mode!")
-        else:
-            self.UpdateMethodMatrix(self.dict_ClientMethodMatrix)
-            self.objLoger.info ("Encryption Client Mode!")
-        self.UpdateMethodMatrix(self.dict_MethodMatrix)
-
-
-    #
-    #nConnectionMode 0: do NoT Encrypt
-    #nConnectionMode 1: Encrypt data as server peer
-    #nConnectionMode 2: Encrypt data as client peer
-    #otherwise do NoT Encrypt
-    #
-    def setSocketClass(self,nConnectionMode):
-        self.nConnectionMode = nConnectionMode
-            
-        if self.nConnectionMode == SERVER_MODE:
-            self.objLoger.info ("Encryption Server Mode!")
-            self.UpdateMethodMatrix(self.dict_ServerMethodMatrix)
-        elif self.nConnectionMode == CLIENT_MODE:
-            self.objLoger.info ("Encryption Client Mode!")
-            self.UpdateMethodMatrix(self.dict_ClientMethodMatrix)	
-        # elif  self.nConnectionMode ==0
-        else:
-            self.objLoger.info ("Normal Mode!")
-            self.UpdateMethodMatrix(self.dict_MethodMatrix)
-
-class CRemoteSocket(CBase_socket):
+class CRemoteSocket(CMiddleSocketLayer):
     def On_Receivedata(self,data):
         self.objLoger.debug ("transport:{} bit".format(len(data)))
         self.objLocalSocket.sendData(data)
 
     def On_Receivedata_Encryption(self,data):
         self.objLoger.debug ("encrypt")
-        self.On_Receivedata(encrypt(data))
+        self.On_Receivedata(self.encryptor.encrypt(data))
 
     def On_Receivedata_Decryption(self,data):
         self.objLoger.debug ("decrypt")
-        self.On_Receivedata(decrypt(data))
+        self.On_Receivedata(self.decryptor.decrypt(data))
 
     def On_LinkClose(self,data):
-        self.objLoger.info ("server disconnected {}".format(self.objLocalSocket.tuple_RemoteAddr))
+        self.objLoger.debug ("remote closed {}".format(self.objLocalSocket.tuple_RemoteAddr))
         self.objLocalSocket.handle_close()
 
     dict_MethodMatrix = {
@@ -353,65 +337,38 @@ class CRemoteSocket(CBase_socket):
         "linkclose":On_LinkClose
     }
 
-    dict_MethodMatrix_Encryption = {
+    dict_ServerMethodMatrix = {
         "read":On_Receivedata_Encryption,
         "linkclose":On_LinkClose
     }
 
-    dict_MethodMatrix_Decryption = {
+    dict_ClientMethodMatrix = {
         "read":On_Receivedata_Decryption,
         "linkclose":On_LinkClose
     }
 
-    def __init__(self,sock=None,objParents=None,nSockID=None):
-        CBase_socket.__init__(self,None,None,objParents.nSocketID)
-        self.objLoger.info ("socket ID:{}".format(objParents.nSocketID) + ",init " + self.__class__.__name__)
-        self.objLocalSocket = objParents
+    def __init__(self,sock=None,objLocalSocket=None,nSockID=None):
+        CMiddleSocketLayer.__init__(self,None,None,objLocalSocket.nSocketID)
+        self.objLoger.debug ("socket ID:{}".format(objLocalSocket.nSocketID) + ",init " + self.__class__.__name__)
         self.UpdateMethodMatrix(self.dict_MethodMatrix)
-        
-    def readMethod(self,data):
-        if len(data)==0:
-            fun = self.GetMethod("linkclose")
+        if objLocalSocket != None:
+            self.objLocalSocket = objLocalSocket
+            self.selfConfigure(objLocalSocket.tuple_RemoteAddr,objLocalSocket.nConnectionMode,objLocalSocket.szPassWord)
         else:
-            fun = self.GetMethod("read")
-        fun(self,data)
-
-
-    def enableEncryption(self,bIsServer):
-        #setAESencryptKey(szEncrypticKey)
-        if bIsServer == True:
-            self.UpdateMethodMatrix(self.dict_MethodMatrix_Decryption)
-            self.objLoger.info ("Encryption Server Mode!")
-        else:
-            self.UpdateMethodMatrix(self.dict_MethodMatrix_Encryption)
-            self.objLoger.info ("Encryption Client Mode!")
-            
-    def setSocketClass(self,nConnectionMode):
-        self.nConnectionMode = nConnectionMode
-            
-        if self.nConnectionMode == SERVER_MODE:
-            self.objLoger.info ("Encryption Server Mode!")
-            self.UpdateMethodMatrix(self.dict_MethodMatrix_Encryption)
-        elif self.nConnectionMode == CLIENT_MODE:
-            self.objLoger.info ("Encryption Client Mode!")
-            self.UpdateMethodMatrix(self.dict_MethodMatrix_Decryption)	
-        # elif  self.nConnectionMode ==0
-        else:
-            self.objLoger.info ("Normal Mode!")
-            self.UpdateMethodMatrix(self.dict_MethodMatrix)
+            raise AssertionError("must input parameter objLocalSocket,CRemoteSocket must initialize by CLocalSocket")
     
 if __name__ == '__main__' :
     tuple_RemoteAddr = ("127.0.0.1",22)
     tuple_LocalAddr = ("127.0.0.1",10087)
     tuple_LocalAddrForEncryption = ("127.0.0.1",10080)
+    szPassWord = "12345678"
     index = 1
     globefunStartLog("debug",True)
     objLoger = logging.getLogger('log.main')
 
     def normal():
         objListen = CLocalSocket()
-        objListen.SetRemote(tuple_RemoteAddr)
-        #objListen.setSocketClass(NORMAL_MODE)
+        objListen.selfConfigure(tuple_RemoteAddr,NORMAL_MODE)
         objListen.create_socket(socket.AF_INET,socket.SOCK_STREAM)
         objListen.bind(tuple_LocalAddr)
         objListen.listen(5)
@@ -424,21 +381,20 @@ if __name__ == '__main__' :
         asyncore.loop(use_poll = True)
 
     def encryption():
-        setAESEncryptionKey("0123456789abcdef")
         objListen = CLocalSocket()
-        objListen.SetRemote(tuple_LocalAddrForEncryption)
-        objListen.setSocketClass(CLIENT_MODE)
+        objListen.selfConfigure(tuple_LocalAddrForEncryption,CLIENT_MODE,szPassWord)
         objListen.create_socket(socket.AF_INET,socket.SOCK_STREAM)
         objListen.bind(tuple_LocalAddr)
         objListen.listen(5)
+        objLoger.info ("listen {}".format(tuple_LocalAddr))
         objLoger.info ("Client Ready")
 
         objListen2 = CLocalSocket()
-        objListen2.SetRemote(tuple_RemoteAddr)
-        objListen2.setSocketClass(SERVER_MODE)
+        objListen2.selfConfigure(tuple_RemoteAddr,SERVER_MODE,szPassWord)
         objListen2.create_socket(socket.AF_INET,socket.SOCK_STREAM)
         objListen2.bind(tuple_LocalAddrForEncryption)
         objListen2.listen(5)
+        objLoger.info ("listen {}".format(tuple_LocalAddrForEncryption))
         objLoger.info ("Server Ready")
 
         objSent = CBase_socket()

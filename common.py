@@ -17,6 +17,9 @@
 
 import logging
 
+############### global set ############
+ENCRYPTION_MODE = "aes-cfb"
+################# macro ###############
 NORMAL_MODE = 0
 SERVER_MODE = 1
 CLIENT_MODE = 2

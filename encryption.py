@@ -19,6 +19,7 @@
 #
 from Crypto.Cipher import AES
 from Crypto.Hash import SHA256
+from common import *
 
 ######################################################
 ##AES ECB
@@ -133,20 +134,11 @@ def newEncryptor(mode,szPassWord):
     else:
         raise ValueError("can not support {} mode".format(mode))
         
-def setAESEncryptionKey(szPassWord,mode = "aes-cfb"):
-    global _encryptor
-    global _decryptor
+def creatTwoEncryptor(szPassWord,mode = ENCRYPTION_MODE):
+    encryptor = newEncryptor(mode,szPassWord)
+    decryptor = newEncryptor(mode,szPassWord)
+    return encryptor,decryptor
     
-    _encryptor = newEncryptor(mode,szPassWord)
-    _decryptor = newEncryptor(mode,szPassWord)
-    
-def encrypt(bytesMessage):
-    global _encryptor
-    return _encryptor.encrypt(bytesMessage)
-
-def decrypt(bytesMessage):
-    global _decryptor
-    return _decryptor.decrypt(bytesMessage)
 # test case
 def AES_ECB_Test(szTestSrt):
     objEncryptor = newEncryptor("aes-ecb","1234567890")

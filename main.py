@@ -50,12 +50,9 @@ def startService(nLocalPort,szRemoteIP,nRemotePort):
 def startEncryptionService_AsClient(nLocalPort,szRemoteIP,nRemotePort,szKey):
     tuple_RemoteAddr = (szRemoteIP,nRemotePort)
     tuple_LocalAddr = ("",nLocalPort)
-    
-    setAESEncryptionKey(szKey)
 
     objListen = CLocalSocket()
-    objListen.SetRemote(tuple_RemoteAddr)
-    objListen.setSocketClass(CLIENT_MODE)
+    objListen.selfConfigure(tuple_RemoteAddr,CLIENT_MODE,szKey)
     objListen.create_socket(socket.AF_INET,socket.SOCK_STREAM)
     objListen.bind(tuple_LocalAddr)
     objListen.listen(5)
@@ -64,12 +61,9 @@ def startEncryptionService_AsClient(nLocalPort,szRemoteIP,nRemotePort,szKey):
 def startEncryptionService_AsServer(nLocalPort,szRemoteIP,nRemotePort,szKey):
     tuple_RemoteAddr = (szRemoteIP,nRemotePort)
     tuple_LocalAddr = ("",nLocalPort)
-    
-    setAESEncryptionKey(szKey)
 
     objListen2 = CLocalSocket()
-    objListen2.SetRemote(tuple_RemoteAddr)
-    objListen2.setSocketClass(SERVER_MODE)
+    objListen2.selfConfigure(tuple_RemoteAddr,SERVER_MODE,szKey)
     objListen2.create_socket(socket.AF_INET,socket.SOCK_STREAM)
     objListen2.bind(tuple_LocalAddr)
     objListen2.listen(5)
@@ -77,7 +71,7 @@ def startEncryptionService_AsServer(nLocalPort,szRemoteIP,nRemotePort,szKey):
 
 
 def main():
-    szloglevel = "error"
+    szloglevel = "info"
     nFlag = 0
     if len(sys.argv) <= 1:
         usage()
