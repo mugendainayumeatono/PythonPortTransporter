@@ -24,6 +24,8 @@ import time
 from common import *
 from service import *
 
+objMainLoger = None
+
 def usage():
     print("-n        normal proxy,local will connect to remote")
     print("-c        start as client peer connection will encrypt")
@@ -36,7 +38,7 @@ def usage():
     print("--rport   set remote port")
     
 def startService(nLocalPort,szRemoteIP,nRemotePort):
-    
+    global objMainLoger
     tuple_RemoteAddr = (szRemoteIP,nRemotePort)
     tuple_LocalAddr = ("",nLocalPort)
     
@@ -45,9 +47,14 @@ def startService(nLocalPort,szRemoteIP,nRemotePort):
     objListen.create_socket(socket.AF_INET,socket.SOCK_STREAM)
     objListen.bind(tuple_LocalAddr)
     objListen.listen(5)
-    asyncore.loop(use_poll = True)
-
+    try:
+        asyncore.loop(use_poll = True)
+    except OSError as why:
+        objMainLoger.error(why)
+        asyncore.loop(use_poll = True)
+        
 def startEncryptionService_AsClient(nLocalPort,szRemoteIP,nRemotePort,szKey):
+    global objMainLoger
     tuple_RemoteAddr = (szRemoteIP,nRemotePort)
     tuple_LocalAddr = ("",nLocalPort)
 
@@ -56,9 +63,14 @@ def startEncryptionService_AsClient(nLocalPort,szRemoteIP,nRemotePort,szKey):
     objListen.create_socket(socket.AF_INET,socket.SOCK_STREAM)
     objListen.bind(tuple_LocalAddr)
     objListen.listen(5)
-    asyncore.loop(use_poll = True)
+    try:
+        asyncore.loop(use_poll = True)
+    except OSError as why:
+        objMainLoger.error(why)
+        asyncore.loop(use_poll = True)
 
 def startEncryptionService_AsServer(nLocalPort,szRemoteIP,nRemotePort,szKey):
+    global objMainLoger
     tuple_RemoteAddr = (szRemoteIP,nRemotePort)
     tuple_LocalAddr = ("",nLocalPort)
 
@@ -67,12 +79,17 @@ def startEncryptionService_AsServer(nLocalPort,szRemoteIP,nRemotePort,szKey):
     objListen2.create_socket(socket.AF_INET,socket.SOCK_STREAM)
     objListen2.bind(tuple_LocalAddr)
     objListen2.listen(5)
-    asyncore.loop(use_poll = True)
+    try:
+        asyncore.loop(use_poll = True)
+    except OSError as why:
+        objMainLoger.error(why)
+        asyncore.loop(use_poll = True)
 
 
 def main():
     szloglevel = "info"
     nFlag = 0
+    global objMainLoger
     if len(sys.argv) <= 1:
         usage()
         sys.exit(2)

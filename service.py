@@ -130,8 +130,16 @@ class CBase_socket(asyncore.dispatcher):
         self.objLoger.debug ("has not send data {} bit".format(len(self.szBuff)))
         
     def handle_close(self, isGentle=True):
+        if hasattr(self,"peerAddr"):
+            peerAddr = self.peerAddr
+        else:
+            try:
+                peerAddr = self.socket.getpeername()
+            except Exception:
+                peerAddr = "unknow"
+        
         if self.connected == False:
-            self.objLoger.debug ("already disconnected {}".format(self.peerAddr))
+            self.objLoger.debug ("already disconnected {}".format(peerAddr))
         else:
             if isGentle == True:
                 # try to sent out cache data
@@ -148,7 +156,7 @@ class CBase_socket(asyncore.dispatcher):
             else:
                 self.objLoger.debug ("skip gentle disconnect")
         self.close()
-        self.objLoger.info ("disconnected {}".format(self.peerAddr))
+        self.objLoger.info ("disconnected {}".format(peerAddr))
         if hasattr(self, 'objParents') == False:
             # current socket is listen socket
             self.objLoger.debug ("listen socket closed")
