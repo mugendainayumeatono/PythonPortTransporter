@@ -89,14 +89,16 @@ class CBase_socket(asyncore.dispatcher):
         
     def handle_accept(self):
         sock, addr = self.accept()
-        self.objLoger.debug ("connected from {}".format(addr))
+        self.objLoger.info ("accept peer {}".format(self.addr))
         if sock is not None:
-            if addr in self.list_BlockAddr:
-                self.objLoger.info ("blocked {}".format(addr))
+            if self.addr in self.list_BlockAddr:
+                self.objLoger.warning ("blocked {}".format(self.addr))
                 sock.close()
                 return
             self.objLoger.debug ("constructed transport socket ID:{}".format(self.nIDCounter))
             self.list_accepted_socket[self.nIDCounter] = (self.__class__(sock,self,self.nIDCounter))
+            #set peer name
+            self.list_accepted_socket[self.nIDCounter].peerAddr = addr
             if self.nIDCounter == 65535:
                 self.nIDCounter =0
             else:
@@ -107,7 +109,7 @@ class CBase_socket(asyncore.dispatcher):
         data = self.recv(self.nRecvBuffSize)
         # if len(data)==0 then link was alredy closed
         self.objLoger.debug ("receive {} bit".format(len(data)))
-        self.objLoger.debug ("read {}({})".format(data,len(data)))
+        #self.objLoger.debug ("read {}({})".format(data,len(data)))
         self.readMethod(data)
         
     def writable(self):
@@ -123,14 +125,13 @@ class CBase_socket(asyncore.dispatcher):
     def handle_write(self):
         self.objLoger.debug ("will send {} bit".format(len(self.szBuff)))
         nLength = self.send(self.szBuff)
-        self.objLoger.debug ("send data {}({})".format(self.szBuff,len(self.szBuff)))
+        #self.objLoger.debug ("send data {}({})".format(self.szBuff,len(self.szBuff)))
         self.szBuff = self.szBuff[nLength:]
         self.objLoger.debug ("has not send data {} bit".format(len(self.szBuff)))
         
     def handle_close(self, isGentle=True):
-        self.objLoger.debug ("disconnect form {}".format(self.addr))
         if self.connected == False:
-            self.objLoger.debug ("disconnected {}".format(self.addr))
+            self.objLoger.debug ("already disconnected {}".format(self.peerAddr))
         else:
             if isGentle == True:
                 # try to sent out cache data
@@ -147,7 +148,7 @@ class CBase_socket(asyncore.dispatcher):
             else:
                 self.objLoger.debug ("skip gentle disconnect")
         self.close()
-        self.objLoger.debug ("disconnected {}".format(self.addr))
+        self.objLoger.info ("disconnected {}".format(self.peerAddr))
         if hasattr(self, 'objParents') == False:
             # current socket is listen socket
             self.objLoger.debug ("listen socket closed")
@@ -156,7 +157,8 @@ class CBase_socket(asyncore.dispatcher):
             self.objLoger.debug ("destruct transport socket ID:{}".format(self.nSocketID))
             
     def handle_connect(self):
-        self.objLoger.debug ("connected to {}".format(self.addr))
+        self.peerAddr = self.socket.getpeername()
+        self.objLoger.debug ("connected to {}".format(self.peerAddr))
  
     # bFlage == True shutdown read,bFlage == False shutdown write
     def handle_shutdown(self,bFlage):

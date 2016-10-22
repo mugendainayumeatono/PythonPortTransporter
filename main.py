@@ -19,6 +19,7 @@
 import logging
 import getopt
 import sys
+import time
 # user module
 from common import *
 from service import *
@@ -40,8 +41,7 @@ def startService(nLocalPort,szRemoteIP,nRemotePort):
     tuple_LocalAddr = ("",nLocalPort)
     
     objListen = CLocalSocket()
-    objListen.SetRemote(tuple_RemoteAddr)
-    objListen.setSocketClass(NORMAL_MODE)
+    objListen.selfConfigure(tuple_RemoteAddr,NORMAL_MODE)
     objListen.create_socket(socket.AF_INET,socket.SOCK_STREAM)
     objListen.bind(tuple_LocalAddr)
     objListen.listen(5)
@@ -130,7 +130,7 @@ def main():
            
 
     objMainLoger = logging.getLogger('log.main')
-    globefunStartLog(szloglevel,True)
+    globefunStartLog(szloglevel,False)
     
     #check param
     if not "nLocalPort" in locals():
@@ -147,6 +147,7 @@ def main():
             print("must specify a key")
             sys.exit(2)
 
+    objMainLoger.info("start at {}".format(time.asctime()))
     if nFlag == NORMAL_PROXY:
         startService(nLocalPort,szRemoteIP,nRemotePort)
     elif nFlag == ENCRYPT_CLIENT:
