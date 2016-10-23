@@ -167,6 +167,10 @@ class CBase_socket(asyncore.dispatcher):
     def handle_connect(self):
         self.peerAddr = self.socket.getpeername()
         self.objLoger.debug ("connected to {}".format(self.peerAddr))
+        
+    def handle_error(self):
+        traceback_error(self.objLoger,self)
+        self.handle_close()
  
     # bFlage == True shutdown read,bFlage == False shutdown write
     def handle_shutdown(self,bFlage):

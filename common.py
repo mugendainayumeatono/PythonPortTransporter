@@ -16,6 +16,7 @@
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import logging
+import sys
 
 ############### global set ############
 ENCRYPTION_MODE = "aes-cfb"
@@ -58,6 +59,44 @@ def globefunStartLog(LogLevel = "info",bConsole = False):
         objLoger.addHandler(objStreamHandler)
 
     objLoger.setLevel(dict_LogLevel[LogLevel])
+    
+def traceback_error(objLoger,obj = None):
+    nil, t, v, tbinfo = compact_traceback()
+
+    # sometimes a user repr method will crash.
+    try:
+        self_repr = repr(obj)
+    except:
+        self_repr = '<__repr__(self) failed for object at %0x>' % id(obj)
+
+    objLoger.error(
+        'uncaptured python exception, closing channel %s (%s:%s %s)' % (
+            self_repr,
+            t,
+            v,
+            tbinfo
+            )
+        )
+        
+def compact_traceback():
+    t, v, tb = sys.exc_info()
+    tbinfo = []
+    if not tb: # Must have a traceback
+        raise AssertionError("traceback does not exist")
+    while tb:
+        tbinfo.append((
+            tb.tb_frame.f_code.co_filename,
+            tb.tb_frame.f_code.co_name,
+            str(tb.tb_lineno)
+            ))
+        tb = tb.tb_next
+
+    # just to be safe
+    del tb
+
+    file, function, line = tbinfo[-1]
+    info = ' '.join(['[%s|%s|%s]' % x for x in tbinfo])
+    return (file, function, line), t, v, info
 
 if __name__=='__main__':
     loglevel = "info"

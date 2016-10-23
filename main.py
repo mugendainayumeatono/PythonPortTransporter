@@ -51,6 +51,7 @@ def startService(nLocalPort,szRemoteIP,nRemotePort):
         asyncore.loop(use_poll = True)
     except OSError as why:
         objMainLoger.error(why)
+        traceback_error(objMainLoger)
         asyncore.loop(use_poll = True)
         
 def startEncryptionService_AsClient(nLocalPort,szRemoteIP,nRemotePort,szKey):
@@ -67,6 +68,7 @@ def startEncryptionService_AsClient(nLocalPort,szRemoteIP,nRemotePort,szKey):
         asyncore.loop(use_poll = True)
     except OSError as why:
         objMainLoger.error(why)
+        traceback_error(objMainLoger)
         asyncore.loop(use_poll = True)
 
 def startEncryptionService_AsServer(nLocalPort,szRemoteIP,nRemotePort,szKey):
@@ -83,6 +85,7 @@ def startEncryptionService_AsServer(nLocalPort,szRemoteIP,nRemotePort,szKey):
         asyncore.loop(use_poll = True)
     except OSError as why:
         objMainLoger.error(why)
+        traceback_error(objMainLoger)
         asyncore.loop(use_poll = True)
 
 
