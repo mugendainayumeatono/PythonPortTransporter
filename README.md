@@ -1,4 +1,4 @@
-# PythonPotrTransporter
+# PythonPortTransporter
 
 this is a reomot port transporter<br>
 it is very similar "ssh -L"<br>
