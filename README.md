@@ -2,7 +2,7 @@
 
 this is a reomot port transporter<br>
 it is very similar "ssh -L"<br>
-all the transport data aer encrypt by aes-cfb256<br>
+all the transport data aer encrypt by aes-cfb8<br>
 and the encrypt keys are pre-confirmed between server and client<br>
 so it do not use RSA to exchange the keys<br>
 and do not has any heartbeat packet<br>
