@@ -43,6 +43,7 @@ class CBase_socket(asyncore.dispatcher):
     #objLoger = None
     list_BlockAddr = []
     nRecvBuffSize = 4194304
+    nQueueMaxLen = 5
     #nRecvBuffSize = 1024
     #list_szSendBuff = []
     
@@ -71,7 +72,7 @@ class CBase_socket(asyncore.dispatcher):
             self.nSocketID = nSockID
         if objParents!=None:
             self.objParents = objParents
-        self.list_szSendBuff = queue.Queue()
+        self.list_szSendBuff = queue.Queue(nQueueMaxLen)
         self.szBuff = []
         self.list_accepted_socket = {}
         self.dict_RunTime_MethodMatrix ={}
@@ -159,10 +160,10 @@ class CBase_socket(asyncore.dispatcher):
         self.objLoger.info ("disconnected {}".format(peerAddr))
         if hasattr(self, 'objParents') == False:
             # current socket is listen socket
-            self.objLoger.debug ("listen socket closed")
+            self.objLoger.debug ("destruct socket")
         else:
             self.objParents.list_accepted_socket[self.nSocketID] = None
-            self.objLoger.debug ("destruct transport socket ID:{}".format(self.nSocketID))
+            self.objLoger.debug ("destruct socket ID:{}".format(self.nSocketID))
             
     def handle_connect(self):
         self.peerAddr = self.socket.getpeername()
@@ -196,6 +197,8 @@ class CBase_socket(asyncore.dispatcher):
             self.list_szSendBuff.put_nowait(szData)
         except queue.Full:
             self.objLoger.error ("send buffer was full!".format(self.nSocketID))
+            return False
+        return True
     
     @classmethod
     def AddToBlockAddr(cls,szIPaddr):
@@ -221,6 +224,9 @@ class CMiddleSocketLayer(CBase_socket):
         else:
             fun = self.GetMethod("read")
         fun(self,data)
+        
+    def readable(self):
+        return self.list_szSendBuff.full()
 
     #
     #nConnectionMode 0: do NoT Encrypt
@@ -276,8 +282,9 @@ class CLocalSocket(CMiddleSocketLayer):
         self.On_Receivedata(self.decryptor.decrypt(data))
         
     def On_LinkClose(self,data):
-        self.objLoger.debug ("remote closed{}".format(self.objParents.tuple_RemoteAddr))
-        self.objRemoteSocket.handle_close()
+        self.objLoger.debug ("close remote{}".format(self.objParents.tuple_RemoteAddr))
+        if hasattr(self,"objRemoteSocket") == True:
+            self.objRemoteSocket.handle_close()
 
     #
     #nEnableEncryption 0: do NoT Encrypt
