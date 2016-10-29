@@ -72,7 +72,7 @@ class CBase_socket(asyncore.dispatcher):
             self.nSocketID = nSockID
         if objParents!=None:
             self.objParents = objParents
-        self.list_szSendBuff = queue.Queue(nQueueMaxLen)
+        self.list_szSendBuff = queue.Queue(self.nQueueMaxLen)
         self.szBuff = []
         self.list_accepted_socket = {}
         self.dict_RunTime_MethodMatrix ={}
@@ -226,7 +226,8 @@ class CMiddleSocketLayer(CBase_socket):
         fun(self,data)
         
     def readable(self):
-        return self.list_szSendBuff.full()
+        self.objLoger.debug ("readable {}".format(not self.list_szSendBuff.full()))
+        return not self.list_szSendBuff.full()
 
     #
     #nConnectionMode 0: do NoT Encrypt
