@@ -226,8 +226,12 @@ class CMiddleSocketLayer(CBase_socket):
         fun(self,data)
         
     def readable(self):
-        self.objLoger.debug ("readable {}".format(not self.list_szSendBuff.full()))
-        return not self.list_szSendBuff.full()
+        if hasattr(self.objRemoteSocket):
+            self.objLoger.debug ("readable {}".format(not self.objRemoteSocket.list_szSendBuff.full()))
+            return not self.objRemoteSocket.list_szSendBuff.full()
+        else:
+            self.objLoger.error ("objRemoteSocket missing")
+            return False
 
     #
     #nConnectionMode 0: do NoT Encrypt
