@@ -224,14 +224,6 @@ class CMiddleSocketLayer(CBase_socket):
         else:
             fun = self.GetMethod("read")
         fun(self,data)
-        
-    def readable(self):
-        if hasattr(self.objRemoteSocket):
-            self.objLoger.debug ("readable {}".format(not self.objRemoteSocket.list_szSendBuff.full()))
-            return not self.objRemoteSocket.list_szSendBuff.full()
-        else:
-            self.objLoger.error ("objRemoteSocket missing")
-            return False
 
     #
     #nConnectionMode 0: do NoT Encrypt
@@ -272,6 +264,18 @@ class CLocalSocket(CMiddleSocketLayer):
         if objParents != None:
             self.selfConfigure(objParents.tuple_RemoteAddr,self.objParents.nConnectionMode,self.objParents.szPassWord)
             
+    def readable(self):
+        if hasattr(self,"objParents"):
+            
+            if hasattr(self,"objRemoteSocket"):
+                self.objLoger.debug ("readable {}".format(not self.objRemoteSocket.list_szSendBuff.full()))
+            else:
+                self.objLoger.debug ("donot has objRemoteSocket")
+                self.GetMethod("creatremote")(self)
+            return not self.objRemoteSocket.list_szSendBuff.full()
+        else:
+            return True
+            
     def On_Receivedata(self,data):
         if hasattr(self,"objRemoteSocket") == False:
             self.GetMethod("creatremote")(self)
@@ -298,8 +302,7 @@ class CLocalSocket(CMiddleSocketLayer):
     #otherwise do NoT Encrypt
     #
     def On_ConnecToRemote(self):
-        self.objLoger.debug ("creat remote socket and connect to {}".format(self.objParents.tuple_RemoteAddr))
-
+        self.objLoger.debug ("connect to {}".format(self.objParents.tuple_RemoteAddr))
         self.objRemoteSocket.create_socket(socket.AF_INET,socket.SOCK_STREAM)
         try:
             self.objRemoteSocket.connect(self.objParents.tuple_RemoteAddr)
@@ -308,14 +311,17 @@ class CLocalSocket(CMiddleSocketLayer):
             self.handle_close(False)
 
     def On_CreatRemote_Normal(self):
-       self.objRemoteSocket = CRemoteSocket(None,self,self.nSocketID)
-       self.On_ConnecToRemote()
+        self.objLoger.debug ("normal creat remote socket")
+        self.objRemoteSocket = CRemoteSocket(None,self,self.nSocketID)
+        self.On_ConnecToRemote()
 
     def On_CreatRemote_Server(self):
+        self.objLoger.debug ("server peer creat remote socket")
         self.objRemoteSocket = CRemoteSocket(None,self,self.nSocketID)
         self.On_ConnecToRemote()
 
     def On_CreatRemote_Client(self):
+        self.objLoger.debug ("client peer creat remote socket")
         self.objRemoteSocket = CRemoteSocket(None,self,self.nSocketID)
         self.On_ConnecToRemote()
 
