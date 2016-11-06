@@ -171,7 +171,7 @@ class CBase_socket(asyncore.dispatcher):
         
     def handle_error(self):
         traceback_error(self.objLoger,self)
-        self.handle_close()
+        self.handle_close(False)
  
     # bFlage == True shutdown read,bFlage == False shutdown write
     def handle_shutdown(self,bFlage):
@@ -196,9 +196,7 @@ class CBase_socket(asyncore.dispatcher):
         try:
             self.list_szSendBuff.put_nowait(szData)
         except queue.Full:
-            self.objLoger.error ("send buffer was full!".format(self.nSocketID))
-            return False
-        return True
+            self.objLoger.error ("put data to buffer fail, data get lost, send buffer was full!")
     
     @classmethod
     def AddToBlockAddr(cls,szIPaddr):
@@ -267,12 +265,22 @@ class CLocalSocket(CMiddleSocketLayer):
     def readable(self):
         if hasattr(self,"objParents"):
             
-            if hasattr(self,"objRemoteSocket"):
-                self.objLoger.debug ("readable {}".format(not self.objRemoteSocket.list_szSendBuff.full()))
-            else:
+            if not hasattr(self,"objRemoteSocket"):
                 self.objLoger.debug ("donot has objRemoteSocket")
                 self.GetMethod("creatremote")(self)
-            return not self.objRemoteSocket.list_szSendBuff.full()
+            if self.objRemoteSocket.list_szSendBuff.qsize() >= self.nQueueMaxLen-2:
+                self.objLoger.error ("readable false")
+                return False
+            else:
+                self.objLoger.error ("readable true")
+                return True
+            #try:
+            #    self.objRemoteSocket.list_szSendBuff.put_nowait("probe")
+            #    self.objRemoteSocket.list_szSendBuff.get_nowait()
+            #    return True
+            #except queue.Full:
+            #    self.objLoger.debug ("readable False")
+            #    return False
         else:
             return True
             
