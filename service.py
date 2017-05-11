@@ -76,6 +76,7 @@ class CBase_socket(asyncore.dispatcher):
         self.szBuff = []
         self.list_accepted_socket = {}
         self.dict_RunTime_MethodMatrix ={}
+        self.timeOut_flage = time.time()
         self.UpdateMethodMatrix(self.dict_CBase_socket_MethodMatrix)
     
     #overwrite this method in child class please
@@ -108,6 +109,9 @@ class CBase_socket(asyncore.dispatcher):
         
     def handle_read(self):
         data = self.recv(self.nRecvBuffSize)
+        #
+        self.timeOut_flage = time.time()
+        self.objLoger.debug ("timestamp={}".format(self.timeOut_flage))
         # if len(data)==0 then link was alredy closed
         self.objLoger.debug ("receive {} bit".format(len(data)))
         #self.objLoger.debug ("read {}({})".format(data,len(data)))
@@ -122,6 +126,20 @@ class CBase_socket(asyncore.dispatcher):
     
         #self.objLoger.debug ("data={}({})".format(self.szBuff,len(self.szBuff)))
         return (len(self.szBuff) > 0)
+
+    #if timeout close connection
+    def readable(self):
+        self.objLoger.debug ("timeout check(time={}s)".format(time.time()-self.timeOut_flage))
+        if (self.nSocketID == None):
+            # listen socket will not timeout
+            return True
+
+        if(time.time()-self.timeOut_flage>TIMEOUTTIME):
+            self.objLoger.warning ("long time not receive data auto close connection(time={}s)".format(time.time()-self.timeOut_flage))
+            self.handle_close()
+            return False
+        else:
+            return True
 
     def handle_write(self):
         self.objLoger.debug ("will send {} bit".format(len(self.szBuff)))
@@ -158,12 +176,13 @@ class CBase_socket(asyncore.dispatcher):
                 self.objLoger.debug ("skip gentle disconnect")
         self.close()
         self.objLoger.info ("disconnected {}".format(peerAddr))
-        if hasattr(self, 'objParents') == False:
+        if (self.nSocketID == None):
             # current socket is listen socket
-            self.objLoger.debug ("destruct socket")
+            self.objLoger.debug ("listen socket closed")
         else:
-            self.objParents.list_accepted_socket[self.nSocketID] = None
-            self.objLoger.debug ("destruct socket ID:{}".format(self.nSocketID))
+            if hasattr(self,"objParents"):
+               self.objParents.list_accepted_socket[self.nSocketID] = None
+            self.objLoger.debug ("destruct transport socket ID:{}".format(self.nSocketID))
             
     def handle_connect(self):
         self.peerAddr = self.socket.getpeername()
@@ -263,27 +282,25 @@ class CLocalSocket(CMiddleSocketLayer):
             self.selfConfigure(objParents.tuple_RemoteAddr,self.objParents.nConnectionMode,self.objParents.szPassWord)
             
     def readable(self):
-        if hasattr(self,"objParents"):
+        def checkBufferOfRemoteSocket(self):
+            if (self.nSocketID != None):
             
-            if not hasattr(self,"objRemoteSocket"):
-                self.objLoger.debug ("donot has objRemoteSocket")
-                self.GetMethod("creatremote")(self)
-            if self.objRemoteSocket.list_szSendBuff.qsize() >= self.nQueueMaxLen-2:
-                self.objLoger.error ("readable false")
-                return False
+                if not hasattr(self,"objRemoteSocket"):
+                    self.objLoger.debug ("donot has objRemoteSocket")
+                    self.GetMethod("creatremote")(self)
+                if self.objRemoteSocket.list_szSendBuff.qsize() >= self.nQueueMaxLen-2:
+                    self.objLoger.debug ("sent buffer full")
+                    return False
+                else:
+                    self.objLoger.debug ("sent buffer not full")
+                    return True
             else:
-                self.objLoger.error ("readable true")
+                #listen socket donot need check buffer
                 return True
-            #try:
-            #    self.objRemoteSocket.list_szSendBuff.put_nowait("probe")
-            #    self.objRemoteSocket.list_szSendBuff.get_nowait()
-            #    return True
-            #except queue.Full:
-            #    self.objLoger.debug ("readable False")
-            #    return False
-        else:
-            return True
-            
+        bRet_timeOutCheck=CMiddleSocketLayer.readable(self)
+        bRet_bufferCheck=checkBufferOfRemoteSocket(self)
+        return bRet_timeOutCheck&bRet_bufferCheck
+        
     def On_Receivedata(self,data):
         if hasattr(self,"objRemoteSocket") == False:
             self.GetMethod("creatremote")(self)
