@@ -1,4 +1,5 @@
 python:
 *.py[cod]
 *.bak
+*.sh
 log

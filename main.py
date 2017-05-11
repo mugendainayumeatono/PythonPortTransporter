@@ -125,11 +125,7 @@ def main():
                 print("potr must be a number")
                 sys.exit(2)
         elif eachOpt == "--key":
-            if len(eachArg) != 16:
-                print("lenght of key must 16 byte")
-                sys.exit(2)
-            else:
-                szKey = eachArg
+            szKey = eachArg
         elif eachOpt == "-n":
             nFlag = nFlag | NORMAL_PROXY
         elif eachOpt == "-c":

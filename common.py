@@ -20,6 +20,8 @@ import sys
 
 ############### global set ############
 ENCRYPTION_MODE = "aes-cfb"
+#connection timeout in second
+TIMEOUTTIME = 60
 ################# macro ###############
 NORMAL_MODE = 0
 SERVER_MODE = 1

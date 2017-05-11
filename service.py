@@ -129,11 +129,11 @@ class CBase_socket(asyncore.dispatcher):
 
     #if timeout close connection
     def readable(self):
-        self.objLoger.debug ("timeout check(time={}s)".format(time.time()-self.timeOut_flage))
         if (self.nSocketID == None):
             # listen socket will not timeout
             return True
-
+            
+        self.objLoger.debug ("timeout check(time={}s)".format(time.time()-self.timeOut_flage))
         if(time.time()-self.timeOut_flage>TIMEOUTTIME):
             self.objLoger.warning ("long time not receive data auto close connection(time={}s)".format(time.time()-self.timeOut_flage))
             self.handle_close()
@@ -289,10 +289,9 @@ class CLocalSocket(CMiddleSocketLayer):
                     self.objLoger.debug ("donot has objRemoteSocket")
                     self.GetMethod("creatremote")(self)
                 if self.objRemoteSocket.list_szSendBuff.qsize() >= self.nQueueMaxLen-2:
-                    self.objLoger.debug ("sent buffer full")
+                    self.objLoger.info ("sent buffer full")
                     return False
                 else:
-                    self.objLoger.debug ("sent buffer not full")
                     return True
             else:
                 #listen socket donot need check buffer
@@ -373,6 +372,19 @@ class CLocalSocket(CMiddleSocketLayer):
     }
 
 class CRemoteSocket(CMiddleSocketLayer):
+    def readable(self):
+        def checkBufferOfRemoteSocket(self):
+            if self.objLocalSocket.list_szSendBuff.qsize() >= self.nQueueMaxLen-2:
+                self.objLoger.info ("sent buffer full")
+                return False
+            else:
+                return True
+                
+        bRet_timeOutCheck=CMiddleSocketLayer.readable(self)
+        bRet_bufferCheck=checkBufferOfRemoteSocket(self)
+        return bRet_timeOutCheck&bRet_bufferCheck
+
+    
     def On_Receivedata(self,data):
         self.objLoger.debug ("transport:{} bit".format(len(data)))
         self.objLocalSocket.sendData(data)
