@@ -77,6 +77,7 @@ class CBase_socket(asyncore.dispatcher):
         self.list_accepted_socket = {}
         self.dict_RunTime_MethodMatrix ={}
         self.timeOut_flage = time.time()
+        self.isWouldClose = False
         self.UpdateMethodMatrix(self.dict_CBase_socket_MethodMatrix)
     
     #overwrite this method in child class please
@@ -117,15 +118,26 @@ class CBase_socket(asyncore.dispatcher):
         #self.objLoger.debug ("read {}({})".format(data,len(data)))
         self.readMethod(data)
         
-    def writable(self):
+    def checkSendCache(self):
         if(len(self.szBuff)==0):
             try:
                 self.szBuff = self.list_szSendBuff.get_nowait()
             except queue.Empty:
                 pass
     
-        #self.objLoger.debug ("data={}({})".format(self.szBuff,len(self.szBuff)))
+        #self.objLoger.debug ("check send cache {}".format(len(self.szBuff) > 0))
         return (len(self.szBuff) > 0)
+    
+    def writable(self):
+        if self.checkSendCache():
+            return True
+        else:
+            if self.isWouldClose:
+                # socket would like close,and try to send cache data out, now cache was enpty so we can turely close socket
+                self.objLoger.debug ("cache data was cleaned try to truely close socket")
+                self.handle_close()
+            else:
+                return False
 
     #if timeout close connection
     def readable(self):
@@ -161,17 +173,16 @@ class CBase_socket(asyncore.dispatcher):
             self.objLoger.debug ("already disconnected {}".format(peerAddr))
         else:
             if isGentle == True:
-                # try to sent out cache data
-                while self.writable():
-                    try:
-                        self.objLoger.debug (" clean cache , will send {} bit".format(len(self.szBuff)))
-                        nLength = self.socket.send(self.szBuff)
-                        self.objLoger.debug (" clean cache , has not send {} bit".format(nLength))
-                        self.szBuff = self.szBuff[nLength:]
-                    except OSError as why:
-                        if why.args[0] in _DISCONNECTED:
-                           self.objLoger.warning ("gentle disconnect fail,cache data was got lost!!!")
-                           break
+                if self.isWouldClose ==False:
+                    self.isWouldClose =True
+                    self.objLoger.info ("socket {} would close".format(self.nSocketID))
+                    self.handle_shutDownRead()
+                    return
+                else:
+                    # if isWouldClose is True means we second times call handle_close
+                    # May be the cache was empty  and we can tryely close socket,or when clean cahce there were something wrong like socket has already closed
+                    if self.checkSendCache():
+                        self.objLoger.warning ("there were something wrong occurred,we do not gentle disconnect cache date was got lost")
             else:
                 self.objLoger.debug ("skip gentle disconnect")
         self.close()
@@ -193,23 +204,9 @@ class CBase_socket(asyncore.dispatcher):
         self.handle_close(False)
  
     # bFlage == True shutdown read,bFlage == False shutdown write
-    def handle_shutdown(self,bFlage):
-        if bFlage == True:
-            self.objLoger.debug ("shutdown read {}".format(self.addr))
-            self.socket.shutdown(socket.SHUT_RD)
-        else:
-            #clean writ cache
-            while self.writable():
-                try:
-                    nLength = self.socket.send(self.szBuff)
-                    self.szBuff = self.szBuff[nLength:]
-                except OSError as why:
-                    if why.args[0] in _DISCONNECTED:
-                        self.objLoger.error ("NO gentle disconnect,cache data was got lost!!!")
-                        break
-
-            self.objLoger.debug ("shutdown write {}".format(self.addr))
-            self.socket.shutdown(socket.SHUT_WR)  
+    def handle_shutDownRead(self):
+        self.objLoger.debug ("shutdown read {}".format(self.addr))
+        self.socket.shutdown(socket.SHUT_RD)
        
     def sendData(self,szData):
         try:
