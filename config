@@ -1,0 +1,14 @@
+[config]
+#local port
+ListenPort=1111
+
+#remote ip
+ForwardIP=123.123.123.123
+
+#remote port
+ForwardPort=2222
+
+#NORMAL_PROXY,ENCRYPT_CLIENT,ENCRYPT_SERVER
+Mode=NORMAL_PROXY
+
+EncryptionKey=anystring

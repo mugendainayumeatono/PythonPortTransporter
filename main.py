@@ -16,10 +16,12 @@
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 #
+import os
 import logging
 import getopt
 import sys
 import time
+import configparser
 # user module
 from common import *
 from service import *
@@ -27,9 +29,9 @@ from service import *
 objMainLoger = None
 
 def usage():
-    print("-n        normal proxy,local will connect to remote")
-    print("-c        start as client peer connection will encrypt")
-    print("-s        start as server peer connection will encrypt")
+    print("-n        normal proxy,local will connect to remote(NORMAL_PROXY)")
+    print("-c        start as client peer connection will encrypt(ENCRYPT_CLIENT)")
+    print("-s        start as server peer connection will encrypt(ENCRYPT_SERVER)")
     print("-C        upper case -C,Contrary proxy,remote will connect to local, this is ues for cross local NAT")
     print("-d        debug")
     print("--key     encryption keyword,lenght must 16 byte")
@@ -92,13 +94,14 @@ def startEncryptionService_AsServer(nLocalPort,szRemoteIP,nRemotePort,szKey):
 def main():
     szloglevel = "info"
     nFlag = 0
+    szConfigPath = "config"
     global objMainLoger
     if len(sys.argv) <= 1:
         usage()
         sys.exit(2)
     
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "ncsChd",["ip=","lport=","rport=","key="])
+        opts, args = getopt.getopt(sys.argv[1:], "ncsC:hd",["ip=","lport=","rport=","key="])
     except getopt.GetoptError as err:
         # print help information and exit:
         print(err) # will print something like "option -a not recognized"
@@ -110,19 +113,25 @@ def main():
             try:
                 szRemoteIP = str(eachArg)
             except ValueError:
-                print("ip must be a string")
+                print("err:ip must be a string")
                 sys.exit(2)
         elif eachOpt == "--lport":
             try:
                 nLocalPort = int(eachArg)
             except ValueError:
-                print("potr must be a number")
+                print("err:potr must be a number")
                 sys.exit(2)
         elif eachOpt == "--rport":
             try:
                 nRemotePort = int(eachArg)
             except ValueError:
-                print("potr must be a number")
+                print("err:potr must be a number")
+                sys.exit(2)
+        elif eachOpt == "-C":
+            try:
+                szConfigPath = str(eachArg)
+            except ValueError:
+                print("err:config file Path must be a string")
                 sys.exit(2)
         elif eachOpt == "--key":
             szKey = eachArg
@@ -132,46 +141,110 @@ def main():
             nFlag = nFlag | ENCRYPT_CLIENT
         elif eachOpt == "-s":
             nFlag = nFlag | ENCRYPT_SERVER
-        elif eachOpt == "-C":
-            nFlag = nFlag | CONTRARY_PROXY
         elif eachOpt == "-d":
             szloglevel = "debug"
         elif eachOpt == "-h":
             usage()
             sys.exit()
         else:
-            print("unknow option {}".format(eachOpt))
+            print("err:unknow option {}".format(eachOpt))
             usage()
             sys.exit(2)
            
 
     objMainLoger = logging.getLogger('log.main')
-    globefunStartLog(szloglevel,False)
-    
+    globefunStartLog(szloglevel,True)
+        
+    try:
+    #if 'szConfigPath' in locals():
+        objConfig = configparser.ConfigParser()
+        objConfig.read_file(open(szConfigPath))
+        #objConfig.read(szConfigPath)        
+        try:
+            nListenPort=objConfig.getint('config','ListenPort')
+        except configparser.NoOptionError:
+            print("info:ListenPort has not define in config section")
+        try:
+            szForwardIP=objConfig.get('config','ForwardIP')
+        except configparser.NoOptionError:
+            print("info:ForwardIP has not define in config section")
+        try:
+            nForwardPort=objConfig.getint('config','ForwardPort')
+        except configparser.NoOptionError:
+            print("info:ForwardPort has not define in config section")
+        try:
+            szEncryptionKey=objConfig.get('config','EncryptionKey')
+        except configparser.NoOptionError:
+            print("info:EncryptionKey has not define in config section")
+        try:
+            szMode=objConfig.get('config','Mode')
+            nModeFlag = 0
+            if szMode == 'NORMAL_PROXY':
+                nModeFlag |= NORMAL_PROXY
+            elif szMode == 'ENCRYPT_CLIENT':
+                nModeFlag |= ENCRYPT_CLIENT
+            elif szMode == 'ENCRYPT_SERVER':
+                nModeFlag |= ENCRYPT_SERVER
+            else:
+                print("info:Mode will be NORMAL_PROXY,ENCRYPT_CLIENT or ENCRYPT_SERVER")
+        except configparser.NoOptionError:
+            print("info:Mode has not define in config section")
+    except FileNotFoundError:
+        print("info:config file not found")
+        
     #check param
-    if not "nLocalPort" in locals():
-        print("must specify local port")
-        sys.exit(2)
-    if not "szRemoteIP" in locals():
-        print("must specify remote ip")
-        sys.exit(2)
-    if not "nRemotePort" in locals():
-        print("must specify remote port")
-        sys.exit(2)
-    if (nFlag & ENCRYPTION) != 0:
-        if not "szKey" in locals():
-            print("must specify a key")
+    if "nLocalPort" not in locals():
+        if "nListenPort" in locals():
+            nLocalPort=nListenPort
+        else:
+            print("err:must specify local port")
             sys.exit(2)
+    if "szRemoteIP" not in locals():
+        if "szForwardIP" in locals():
+            szRemoteIP=szForwardIP
+        else:
+            print("err:must specify remote ip")
+            sys.exit(2)
+    if "nRemotePort" not in locals():
+        if "nForwardPort" in locals():
+            nRemotePort=nForwardPort
+        else:
+            print("err:must specify remote port")
+            sys.exit(2)
+    if nFlag ==0:
+        if "szMode" in locals():
+            nFlag = nModeFlag
+        else:
+            print("err:must specify a mode")
+            sys.exit(2)
+    if (nFlag & ENCRYPTION) != 0:
+        if "szKey" not in locals():
+            if "szEncryptionKey" in locals():
+                szKey = szEncryptionKey
+            else:
+                print("err:must specify a key")
+                sys.exit(2)
 
     objMainLoger.info("start at {}".format(time.asctime()))
     if nFlag == NORMAL_PROXY:
-        startService(nLocalPort,szRemoteIP,nRemotePort)
+        objMainLoger.debug("nLocalPort {}".format(nLocalPort))
+        objMainLoger.debug("szRemoteIP {}".format(szRemoteIP))
+        objMainLoger.debug("nRemotePort {}".format(nRemotePort))
+        #startService(nLocalPort,szRemoteIP,nRemotePort)
     elif nFlag == ENCRYPT_CLIENT:
-        startEncryptionService_AsClient(nLocalPort,szRemoteIP,nRemotePort,szKey)
+        objMainLoger.debug("nLocalPort {}".format(nLocalPort))
+        objMainLoger.debug("szRemoteIP {}".format(szRemoteIP))
+        objMainLoger.debug("nRemotePort {}".format(nRemotePort))
+        objMainLoger.debug("szKey {}".format(szKey))
+        #startEncryptionService_AsClient(nLocalPort,szRemoteIP,nRemotePort,szKey)
     elif nFlag == ENCRYPT_SERVER:
-        startEncryptionService_AsServer(nLocalPort,szRemoteIP,nRemotePort,szKey)
+        objMainLoger.debug("nLocalPort {}".format(nLocalPort))
+        objMainLoger.debug("szRemoteIP {}".format(szRemoteIP))
+        objMainLoger.debug("nRemotePort {}".format(nRemotePort))
+        objMainLoger.debug("szKey {}".format(szKey))
+        #startEncryptionService_AsServer(nLocalPort,szRemoteIP,nRemotePort,szKey)
     else:
-        print("-n -s or -c must chose only one")
+        print("err:must chose one and only one mode")
         sys.exit(2)
         
     
