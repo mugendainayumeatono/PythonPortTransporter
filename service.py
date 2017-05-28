@@ -92,7 +92,7 @@ class CBase_socket(asyncore.dispatcher):
         
     def handle_accept(self):
         sock, addr = self.accept()
-        self.objLoger.info ("accept peer {}".format(self.addr))
+        self.objLoger.info ("accept peer {}".format(addr))
         if sock is not None:
             if self.addr in self.list_BlockAddr:
                 self.objLoger.warning ("blocked {}".format(self.addr))
@@ -176,7 +176,7 @@ class CBase_socket(asyncore.dispatcher):
                 if self.isWouldClose ==False:
                     self.isWouldClose =True
                     self.objLoger.info ("socket {} would close".format(self.nSocketID))
-                    self.handle_shutDownRead()
+                    #self.handle_shutDownRead()
                     return
                 else:
                     # if isWouldClose is True means we second times call handle_close
