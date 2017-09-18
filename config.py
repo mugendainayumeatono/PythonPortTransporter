@@ -39,12 +39,14 @@ def init(szConfigPath):
     global dict_ConfigBoolean
     try:
         objConfig = configparser.ConfigParser()
+        objConfig.optionxform = str
         objConfig.read_file(open(szConfigPath))
     except FileNotFoundError:
         print("err:config file not found")
         return False
         
     for key in objConfig["StringParameter"]:
+        print ("{}:{}".format(key,objConfig["StringParameter"][key]))
         dict_ConfigStr[key] = objConfig.get("StringParameter",key)
     for key in objConfig["IntegerParameter"]:
         dict_ConfigInt[key] = objConfig.getint("IntegerParameter",key)
@@ -53,8 +55,8 @@ def init(szConfigPath):
     for key in objConfig["BooleanParameter"]:
         dict_ConfigBoolean[key] = objConfig.getboolean("BooleanParameter",key)
         
-    if hasattr(dict_ConfigStr,"Mode"):
-        dict_ConfigInt[nMode]=changeModeParameterToInteger(dict_ConfigStr[Mode])
+    if "Mode" in dict_ConfigStr:
+        dict_ConfigInt["nMode"]=changeModeParameterToInteger(dict_ConfigStr["Mode"])
     return True
         
         
@@ -76,13 +78,13 @@ if __name__ == '__main__':
     
     print ("===StringParameter===")
     for key in dict_ConfigStr:
-        print (dict_ConfigStr[key])
+        print ("{}:{}".format(key,dict_ConfigStr[key]))
     print ("===IntegerParameter===")
     for key in dict_ConfigInt:
-        print (dict_ConfigInt[key])
+        print ("{}:{}".format(key,dict_ConfigInt[key]))
     print ("===FloatParameter===")
     for key in dict_ConfigFloat:
-        print (dict_ConfigFloat[key])
+        print ("{}:{}".format(key,dict_ConfigFloat[key]))
     print ("===BooleanParameter===")
     for key in dict_ConfigBoolean:
-        print (dict_ConfigBoolean[key])
+        print ("{}:{}".format(key,dict_ConfigBoolean[key]))
