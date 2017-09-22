@@ -33,5 +33,12 @@ python main.py -s --ip=127.0.0.1 --rport=ServicePort --lport=clientConnectToThis
 encrypt transport client peer<br>
 python main.py -c --ip=serverIP --rport=Server-lport --lport=transportServicePortToHere --key=password<br>
 
+use config file<br>
+python main.py --config default.config<br>
+
+when you use config file you can also input console parameter<br>
+!!!console intput parameter will cover the parameter from config<br>
+
 #changelog
 v0.1 release<br>
+v0.2 support config file<br>
