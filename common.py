@@ -44,8 +44,8 @@ dict_LogLevel = {
     "warning":logging.WARNING,
     "error":logging.ERROR
 }
-szLogPath = "log"
-def globefunStartLog(LogLevel = "info",bConsole = False):
+
+def globefunStartLog(szLogPath = "log",LogLevel = "info",bConsole = False):
     szLogRecord = "%(asctime)s PID:%(process)d  In module:%(module)s[%(name)s] %(funcName)s() %(lineno)d %(levelname)s: %(message)s"
     objFormatter = logging.Formatter(szLogRecord)
   
@@ -103,7 +103,7 @@ def compact_traceback():
 if __name__=='__main__':
     loglevel = "info"
     objMainLoger = logging.getLogger('log.main')
-    globefunStartLog(loglevel,True)
+    globefunStartLog(log,loglevel,True)
     print("log level = {}".format(loglevel))
     objMainLoger.info("info")
     objMainLoger.debug("debug")

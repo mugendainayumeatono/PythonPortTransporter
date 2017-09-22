@@ -20,6 +20,7 @@ import configparser
 # user module
 from common import *
 
+dict_Config={}
 dict_ConfigStr={}
 dict_ConfigInt={}
 dict_ConfigFloat={}
@@ -33,6 +34,7 @@ def init(szConfigPath):
     if no error happened return true and fill [dict_ConfigStr] [dict_ConfigInt] [dict_ConfigFloat] [dict_ConfigBoolean]
     ohterwise return False
     '''
+    global dict_Config
     global dict_ConfigStr
     global dict_ConfigInt
     global dict_ConfigFloat
@@ -46,7 +48,6 @@ def init(szConfigPath):
         return False
         
     for key in objConfig["StringParameter"]:
-        print ("{}:{}".format(key,objConfig["StringParameter"][key]))
         dict_ConfigStr[key] = objConfig.get("StringParameter",key)
     for key in objConfig["IntegerParameter"]:
         dict_ConfigInt[key] = objConfig.getint("IntegerParameter",key)
@@ -57,6 +58,12 @@ def init(szConfigPath):
         
     if "Mode" in dict_ConfigStr:
         dict_ConfigInt["nMode"]=changeModeParameterToInteger(dict_ConfigStr["Mode"])
+        del dict_ConfigStr["Mode"]
+        
+    dict_Config.update(dict_ConfigStr)
+    dict_Config.update(dict_ConfigInt)
+    dict_Config.update(dict_ConfigFloat)
+    dict_Config.update(dict_ConfigBoolean)
     return True
         
         
@@ -88,3 +95,6 @@ if __name__ == '__main__':
     print ("===BooleanParameter===")
     for key in dict_ConfigBoolean:
         print ("{}:{}".format(key,dict_ConfigBoolean[key]))
+    print ("===ToalParameter===")
+    for key in dict_Config:
+        print ("{}:{}".format(key,dict_Config[key]))
