@@ -34,12 +34,13 @@ from encryption import *
 #
 #
 #
-#doc
+class CBase_socket(asyncore.dispatcher):
+# doc
+#
 # on child class over write function readMethod() to define what will child class do
 # readMethod() should call GetMethod() which get method form method martix table, to decide what will do
 # use UpdateMethodMatrix() to update method martix table
 # in CBase_socket there are two default method accept and read,you should overwrite those two method on child class
-class CBase_socket(asyncore.dispatcher):
     #objLoger = None
     list_BlockAddr = []
     nRecvBuffSize = 4194304
@@ -136,22 +137,12 @@ class CBase_socket(asyncore.dispatcher):
                 # socket would like close,and try to send cache data out, now cache was enpty so we can turely close socket
                 self.objLoger.debug ("cache data was cleaned try to truely close socket")
                 self.handle_close()
+                return False
             else:
                 return False
 
-    #if timeout close connection
     def readable(self):
-        if (self.nSocketID == None):
-            # listen socket will not timeout
-            return True
-            
-        self.objLoger.debug ("timeout check(time={}s)".format(time.time()-self.timeOut_flage))
-        if(time.time()-self.timeOut_flage>TIMEOUTTIME):
-            self.objLoger.warning ("long time not receive data auto close connection(time={}s)".format(time.time()-self.timeOut_flage))
-            self.handle_close()
-            return False
-        else:
-            return True
+        return True
 
     def handle_write(self):
         self.objLoger.debug ("will send {} bit".format(len(self.szBuff)))
@@ -268,6 +259,20 @@ class CMiddleSocketLayer(CBase_socket):
             else:
                 self.encryptor,self.decryptor = creatTwoEncryptor(szPassWord)
 
+    #if timeout close connection
+    def checkTimeout(self):
+        if (self.nSocketID == None):
+            # listen socket will not timeout
+            return True
+
+        self.objLoger.debug ("timeout check(time={}s)".format(time.time()-self.timeOut_flage))
+        if(time.time()-self.timeOut_flage>TIMEOUTTIME):
+            self.objLoger.warning ("long time not receive data auto close connection(time={}s)".format(time.time()-self.timeOut_flage))
+            self.handle_close()
+            return False
+        else:
+            return True
+
 
 class CLocalSocket(CMiddleSocketLayer):
     
@@ -293,9 +298,7 @@ class CLocalSocket(CMiddleSocketLayer):
             else:
                 #listen socket donot need check buffer
                 return True
-        bRet_timeOutCheck=CMiddleSocketLayer.readable(self)
-        bRet_bufferCheck=checkBufferOfRemoteSocket(self)
-        return bRet_timeOutCheck&bRet_bufferCheck
+        return checkBufferOfRemoteSocket(self)
         
     def On_Receivedata(self,data):
         if hasattr(self,"objRemoteSocket") == False:
@@ -377,7 +380,7 @@ class CRemoteSocket(CMiddleSocketLayer):
             else:
                 return True
                 
-        bRet_timeOutCheck=CMiddleSocketLayer.readable(self)
+        bRet_timeOutCheck=CMiddleSocketLayer.checkTimeout(self)
         bRet_bufferCheck=checkBufferOfRemoteSocket(self)
         return bRet_timeOutCheck&bRet_bufferCheck
 
@@ -429,7 +432,7 @@ if __name__ == '__main__' :
     tuple_LocalAddrForEncryption = ("127.0.0.1",10080)
     szPassWord = "12345678"
     index = 1
-    globefunStartLog("debug",True)
+    globefunStartLog("debug","debug",True)
     objLoger = logging.getLogger('log.main')
 
     def normal():
